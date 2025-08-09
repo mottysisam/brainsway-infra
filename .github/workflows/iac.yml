@@ -271,31 +271,61 @@ jobs:
             terragrunt run-all plan -no-color -parallelism 4
           fi
 
-      - name: Verify AWS Resources After Deployment
+      - name: Verify AWS Resources After Infrastructure Operation
         id: verification
-        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply'))) }}
+        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))) }}
         run: |
           echo "🔍 Starting AWS resource verification for ${{ matrix.environment }} environment..."
+          
+          # Determine operation mode based on event and commands
+          OPERATION_MODE="audit"
+          OPERATION_CONTEXT="plan"
+          
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            OPERATION_MODE="deployment"
+            OPERATION_CONTEXT="apply"
+            echo "🚀 Post-deployment verification (auto-deploy)"
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+            OPERATION_MODE="deployment"  
+            OPERATION_CONTEXT="apply"
+            echo "🚀 Post-deployment verification (manual)"
+          else
+            OPERATION_MODE="audit"
+            OPERATION_CONTEXT="plan"
+            echo "📋 Infrastructure audit verification (plan)"
+          fi
           
           # Make verification script executable
           chmod +x scripts/verify-deployment.sh
           
-          # Run verification with 10-minute timeout for eventual consistency
-          VERIFICATION_OUTPUT_FILE="verification-${{ matrix.environment }}-$(date +%Y%m%d-%H%M%S).json"
+          # Run verification with context-appropriate timeout
+          WAIT_TIME=300
+          if [ "$OPERATION_MODE" = "deployment" ]; then
+            WAIT_TIME=600  # Longer wait for post-deployment verification
+          fi
+          
+          VERIFICATION_OUTPUT_FILE="verification-${{ matrix.environment }}-${OPERATION_CONTEXT}-$(date +%Y%m%d-%H%M%S).json"
+          
+          echo "🔧 Mode: ${OPERATION_MODE}, Context: ${OPERATION_CONTEXT}, Wait: ${WAIT_TIME}s"
           
           if ./scripts/verify-deployment.sh \
             --environment "${{ matrix.environment }}" \
             --region "us-east-2" \
             --config "infra/live" \
             --output "$VERIFICATION_OUTPUT_FILE" \
-            --wait-time 600; then
+            --wait-time "$WAIT_TIME" \
+            --mode "$OPERATION_MODE"; then
             echo "verification_status=success" >> $GITHUB_OUTPUT
             echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "verification_mode=$OPERATION_MODE" >> $GITHUB_OUTPUT
+            echo "verification_context=$OPERATION_CONTEXT" >> $GITHUB_OUTPUT
             echo "✅ Resource verification completed successfully"
           else
             VERIFICATION_EXIT_CODE=$?
             echo "verification_status=partial" >> $GITHUB_OUTPUT
             echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "verification_mode=$OPERATION_MODE" >> $GITHUB_OUTPUT
+            echo "verification_context=$OPERATION_CONTEXT" >> $GITHUB_OUTPUT
             echo "verification_exit_code=$VERIFICATION_EXIT_CODE" >> $GITHUB_OUTPUT
             echo "⚠️ Resource verification completed with issues (exit code: $VERIFICATION_EXIT_CODE)"
           fi
@@ -344,6 +374,8 @@ jobs:
             
             const environment = '${{ matrix.environment }}';
             const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const verificationMode = '${{ steps.verification.outputs.verification_mode }}' || 'deployment';
+            const verificationContext = '${{ steps.verification.outputs.verification_context }}' || 'apply';
             const jobStatus = '${{ job.status }}';
             const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
             const timestamp = new Date().toISOString();
@@ -388,8 +420,10 @@ jobs:
             <body>
               <div class="container">
                 <div class="header">
-                  <h1>🔍 AWS Deployment Verification Report</h1>
+                  <h1>${verificationContext === 'apply' ? '🚀' : '📋'} AWS ${verificationMode === 'deployment' ? 'Deployment' : 'Audit'} Verification Report</h1>
                   <p><strong>Environment:</strong> ${environment.toUpperCase()}</p>
+                  <p><strong>Mode:</strong> ${verificationMode === 'deployment' ? 'Post-Deployment Verification' : 'Infrastructure Audit'}</p>
+                  <p><strong>Operation:</strong> ${verificationContext.toUpperCase()}</p>
                   <p><strong>Status:</strong> ${verificationStatus.toUpperCase()}</p>
                   <p><strong>Timestamp:</strong> ${timestamp}</p>
                 </div>
@@ -463,10 +497,10 @@ jobs:
             const mailOptions = {
               from: process.env.SMTP_USERNAME,
               to: process.env.NOTIFICATION_EMAIL,
-              subject: `🔍 AWS Deployment Verification - ${environment.toUpperCase()} - ${verificationStatus.toUpperCase()}`,
+              subject: `${verificationContext === 'apply' ? '🚀' : '📋'} AWS ${verificationMode === 'deployment' ? 'Deployment' : 'Audit'} - ${environment.toUpperCase()} - ${verificationStatus.toUpperCase()}`,
               html: htmlContent,
               attachments: [{
-                filename: `verification-${environment}-${new Date().toISOString().split('T')[0]}.json`,
+                filename: `verification-${environment}-${verificationContext}-${new Date().toISOString().split('T')[0]}.json`,
                 path: verificationFile
               }]
             };
@@ -536,6 +570,8 @@ jobs:
             const action = isApply ? 'deploy' : 'plan';
             const jobStatus = '${{ job.status }}';
             const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const verificationMode = '${{ steps.verification.outputs.verification_mode }}' || 'deployment';
+            const verificationContext = '${{ steps.verification.outputs.verification_context }}' || 'apply';
             const verificationFile = '${{ steps.verification.outputs.verification_file }}';
             const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
             
@@ -573,24 +609,34 @@ jobs:
             commentBody += `🔗 [View logs](${runUrl})\n\n`;
             
             // Add verification results if available
-            if (verificationData.summary && isApply) {
+            if (verificationData.summary) {
               const summary = verificationData.summary;
               const verificationIcon = verificationStatus === 'success' ? '✅' : verificationStatus === 'partial' ? '⚠️' : '❌';
+              const verificationTitle = verificationMode === 'deployment' ? 'Resource Verification' : 'Infrastructure Audit';
+              const modeIcon = verificationContext === 'apply' ? '🚀' : '📋';
               
-              commentBody += `### ${verificationIcon} Resource Verification\n`;
+              commentBody += `### ${verificationIcon} ${modeIcon} ${verificationTitle}\n`;
+              commentBody += `**Mode:** ${verificationMode === 'deployment' ? 'Post-Deployment' : 'Current State Audit'} (${verificationContext.toUpperCase()})\n\n`;
               commentBody += `- **Expected:** ${summary.total_expected || 0} resources\n`;
               commentBody += `- **Found:** ${summary.total_found || 0} resources ✅\n`;
               commentBody += `- **Missing:** ${summary.total_missing || 0} resources ❌\n`;
               commentBody += `- **Success Rate:** ${summary.success_rate || 0}%\n\n`;
               
               if (summary.total_missing > 0) {
-                commentBody += `⚠️ **Some resources were not found after deployment.** This could indicate:\n`;
-                commentBody += `- Resources are still being created (AWS eventual consistency)\n`;
-                commentBody += `- Resources failed to deploy\n`;
-                commentBody += `- Verification script needs adjustment\n\n`;
+                if (verificationMode === 'deployment') {
+                  commentBody += `⚠️ **Some resources were not found after deployment.** This could indicate:\n`;
+                  commentBody += `- Resources are still being created (AWS eventual consistency)\n`;
+                  commentBody += `- Resources failed to deploy\n`;
+                  commentBody += `- Verification script needs adjustment\n\n`;
+                } else {
+                  commentBody += `ℹ️ **Missing resources in audit mode** may indicate:\n`;
+                  commentBody += `- Resources not yet deployed to this environment\n`;
+                  commentBody += `- Resources were removed or failed previous deployments\n`;
+                  commentBody += `- Configuration differences from expected state\n\n`;
+                }
               }
               
-              commentBody += `📊 [Download verification report](${runUrl}) (check artifacts)\n\n`;
+              commentBody += `📊 [Download ${verificationMode} report](${runUrl}) (check artifacts)\n\n`;
             }
             
             commentBody += `### Commands\n`;

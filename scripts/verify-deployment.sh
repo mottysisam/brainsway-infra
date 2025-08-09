@@ -57,23 +57,35 @@ OPTIONS:
     -c, --config FILE        Terragrunt config root directory
     -o, --output FILE        Output report file (JSON format)
     -w, --wait-time SECONDS  Maximum wait time for resources (default: 300)
+    -m, --mode MODE          Verification mode: deployment|audit (default: deployment)
     -h, --help              Show this help message
 
 EXAMPLES:
-    # Verify dev environment deployment
-    $0 --environment dev --region us-east-2
+    # Post-deployment verification (after apply)
+    $0 --environment dev --region us-east-2 --mode deployment
 
-    # Verify with custom wait time and output file
-    $0 -e staging -w 600 -o staging-verification.json
+    # Infrastructure audit (after plan or for current state)
+    $0 --environment dev --mode audit
 
-    # Verify all resources in production (read-only)
-    $0 -e prod -c infra/live/prod
+    # Production audit with custom wait time
+    $0 -e prod -m audit -w 180 -o prod-audit.json
+
+    # Custom configuration for staging deployment
+    $0 -e staging -m deployment -w 600 -c infra/live
 
 DESCRIPTION:
-    This script performs comprehensive verification of AWS resources after
-    Terragrunt deployments. It handles eventual consistency by waiting and
-    retrying, then generates detailed reports comparing expected vs actual
-    resources.
+    This script performs comprehensive verification of AWS resources in two modes:
+    
+    DEPLOYMENT MODE: Used after terraform/terragrunt apply operations to verify
+    that expected resources were created/updated successfully. Includes longer
+    wait times for eventual consistency.
+    
+    AUDIT MODE: Used after plan operations or for current state analysis. 
+    Provides a snapshot of existing resources vs expectations with shorter
+    timeouts suitable for read-only verification.
+    
+    Both modes handle eventual consistency with configurable retry logic and
+    generate detailed JSON reports for CI/CD integration.
 
     The script probes multiple AWS services:
     - RDS (databases and clusters)
@@ -96,6 +108,7 @@ parse_arguments() {
     CONFIG_ROOT="infra/live"
     OUTPUT_FILE=""
     WAIT_TIME=300
+    MODE="deployment"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -119,6 +132,10 @@ parse_arguments() {
                 WAIT_TIME="$2"
                 shift 2
                 ;;
+            -m|--mode)
+                MODE="$2"
+                shift 2
+                ;;
             -h|--help)
                 show_usage
                 exit 0
@@ -140,6 +157,11 @@ parse_arguments() {
 
     if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|prod)$ ]]; then
         echo "Error: Environment must be one of: dev, staging, prod" >&2
+        exit 1
+    fi
+
+    if [[ ! "$MODE" =~ ^(deployment|audit)$ ]]; then
+        echo "Error: Mode must be one of: deployment, audit" >&2
         exit 1
     fi
 
@@ -176,6 +198,7 @@ extract_expected_resources() {
   "metadata": {
     "environment": "$ENVIRONMENT",
     "region": "$REGION",
+    "mode": "$MODE",
     "scan_time": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
     "config_root": "$CONFIG_ROOT"
   },
@@ -360,6 +383,7 @@ probe_aws_resources() {
   "metadata": {
     "environment": "$ENVIRONMENT",
     "region": "$REGION",
+    "mode": "$MODE",
     "verification_time": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
     "verification_duration_seconds": 0
   },
@@ -557,6 +581,14 @@ main() {
     echo
     echo "${BOLD}🔍 AWS Resource Deployment Verification Engine${NC}"
     echo "${BOLD}================================================${NC}"
+    echo
+    if [[ "$MODE" == "deployment" ]]; then
+        echo "${BLUE}🚀 Post-Deployment Verification Mode${NC}"
+        echo "${BLUE}Verifying resources after infrastructure deployment${NC}"
+    else
+        echo "${BLUE}📋 Infrastructure Audit Mode${NC}"
+        echo "${BLUE}Analyzing current infrastructure state${NC}"
+    fi
     echo
 
     parse_arguments "$@"
