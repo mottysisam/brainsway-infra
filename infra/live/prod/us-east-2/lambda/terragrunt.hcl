@@ -14,7 +14,8 @@ inputs = {
       "layers": [
         "arn:aws:lambda:us-east-2:770693421928:layer:Klayers-p39-psycopg2-binary:1"
       ],
-      "environment": null
+      "environment": null,
+      "filename": "placeholder.zip"
     },
     "generatePresignedUrl": {
       "role": "arn:aws:iam::154948530138:role/lambda_s3_execution",
@@ -26,7 +27,8 @@ inputs = {
         "x86_64"
       ],
       "layers": null,
-      "environment": null
+      "environment": null,
+      "filename": "placeholder.zip"
     },
     "presignedUrlForS3Upload": {
       "role": "arn:aws:iam::154948530138:role/lambda_s3_execution",
@@ -38,7 +40,8 @@ inputs = {
         "x86_64"
       ],
       "layers": null,
-      "environment": null
+      "environment": null,
+      "filename": "placeholder.zip"
     },
     "sync_clock": {
       "role": "arn:aws:iam::154948530138:role/lambda-vpc-role",
@@ -50,7 +53,8 @@ inputs = {
         "x86_64"
       ],
       "layers": null,
-      "environment": null
+      "environment": null,
+      "filename": "placeholder.zip"
     },
     "softwareUpdateHandler": {
       "role": "arn:aws:iam::154948530138:role/sf_update_lambda_role",
@@ -62,7 +66,8 @@ inputs = {
         "x86_64"
       ],
       "layers": null,
-      "environment": null
+      "environment": null,
+      "filename": "placeholder.zip"
     }
   },
   "function_urls": [],

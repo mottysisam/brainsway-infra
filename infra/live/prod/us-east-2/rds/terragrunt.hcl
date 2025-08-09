@@ -2,8 +2,8 @@ include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/rds" }
 inputs = {
   "db_subnet_groups": {
-    "default": {
-      "description": "default",
+    "brainsway-prod-db-subnet-group": {
+      "description": "Production database subnet group",
       "subnet_ids": [
         "subnet-47cb8d2e",
         "subnet-40895a0d",
@@ -18,7 +18,7 @@ inputs = {
       "engine_version": "13.12",
       "engine_mode": "serverless",
       "database_name": null,
-      "db_subnet_group_name": "default",
+      "db_subnet_group_name": "brainsway-prod-db-subnet-group",
       "storage_encrypted": true,
       "kms_key_id": "arn:aws:kms:us-east-2:154948530138:key/e392ccba-4ba3-452e-b0e0-135f8445ba5d",
       "backup_retention_period": 7,
@@ -35,7 +35,7 @@ inputs = {
       "engine": "postgres",
       "engine_version": "14.17",
       "instance_class": "db.t3.small",
-      "db_subnet_group_name": "default",
+      "db_subnet_group_name": "brainsway-prod-db-subnet-group",
       "publicly_accessible": true,
       "allocated_storage": 20,
       "storage_type": "gp2",

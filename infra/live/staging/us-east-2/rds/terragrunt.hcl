@@ -1,3 +1,5 @@
 include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/rds" }
-inputs = { }
+inputs = {
+  # No RDS instances configured for staging yet - empty configuration for validation
+}
