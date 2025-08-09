@@ -13,9 +13,13 @@ jobs:
       id-token: write
       contents: read
       pull-requests: write
+      issues: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Detect environment (dev/staging/prod)
         id: detect
@@ -30,9 +34,16 @@ jobs:
           else
             PRNUM="${{ github.event.issue.number }}"
             REPO="${{ github.repository }}"
-            CHANGED=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=200" \
-              | jq -r '.[].filename' | grep '^infra/live/' || true)
+            PAGE=1; CHANGED=""
+            while :; do
+              BATCH=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=100&page=${PAGE}" \
+                | jq -r '.[].filename')
+              [ -z "$BATCH" ] && break
+              CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
+              PAGE=$((PAGE+1))
+            done
+            CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || true)
           fi
           ENV="dev"
           echo "$CHANGED" | grep -q '/prod/' && ENV="prod"
@@ -55,6 +66,11 @@ jobs:
             prod) echo "arn=${{ secrets.AWS_ROLE_IAC_PROD }}" >> $GITHUB_OUTPUT ;;
           esac
 
+      - name: Env for non-interactive runs
+        run: |
+          echo "TF_IN_AUTOMATION=1" >> $GITHUB_ENV
+          echo "TF_INPUT=0" >> $GITHUB_ENV
+
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -73,4 +89,4 @@ jobs:
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
 
       - name: Digger
-        uses: diggerhq/digger@v0
+        uses: diggerhq/digger@v0.4.15
