@@ -115,7 +115,7 @@ jobs:
 
       - name: Terragrunt Plan
         id: plan
-        working-directory: infra/live
+        working-directory: infra/live/${{ steps.detect.outputs.env }}
         run: |
           set -euo pipefail
           echo "## 🏗️ Terraform Plan for ${{ steps.detect.outputs.env }} environment" >> $GITHUB_STEP_SUMMARY
@@ -147,7 +147,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('infra/live/plan_comment.md', 'utf8');
+            const comment = fs.readFileSync('infra/live/${{ steps.detect.outputs.env }}/plan_comment.md', 'utf8');
             
             // Find existing plan comment to update
             const { data: comments } = await github.rest.issues.listComments({
@@ -177,7 +177,7 @@ jobs:
 
       - name: Apply Changes
         if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/apply')
-        working-directory: infra/live
+        working-directory: infra/live/${{ steps.detect.outputs.env }}
         run: |
           echo "## 🚀 Applying Terraform Changes" >> $GITHUB_STEP_SUMMARY
           terragrunt run-all apply -auto-approve -no-color -parallelism 2 2>&1 | tee apply.log
@@ -202,7 +202,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('infra/live/apply_comment.md', 'utf8');
+            const comment = fs.readFileSync('infra/live/${{ steps.detect.outputs.env }}/apply_comment.md', 'utf8');
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
