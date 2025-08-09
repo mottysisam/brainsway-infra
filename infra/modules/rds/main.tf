@@ -61,22 +61,20 @@ resource "aws_db_instance" "this" {
 }
 
 # Generate random passwords for database instances that meet AWS RDS requirements
-# AWS RDS password requirements:
+# AWS RDS password requirements are very strict - using alphanumeric only for reliability
+# Requirements:
 # - 8-128 characters long
-# - Must contain characters from at least 3 of the following 4 categories:
-#   - Uppercase letters (A-Z)
-#   - Lowercase letters (a-z)  
-#   - Numbers (0-9)
-#   - Non-alphanumeric characters (!#$%&*+-=?^_|~)
-# - Cannot contain: / (slash), " (double quote), @ (at sign), space, ' (single quote)
+# - Must contain uppercase letters, lowercase letters, and numbers
+# - Cannot contain: / (slash), " (double quote), @ (at sign), space, ' (single quote), ` (backtick)
+# - Some special characters may be rejected depending on the database engine
 resource "random_password" "db_password" {
   for_each = var.instances
   length   = 20
-  special  = true
-  # Use only safe special characters that are explicitly allowed by AWS RDS
-  override_special = "!#$%&*+-=?^_|~"
-  min_lower        = 2
-  min_upper        = 2
-  min_numeric      = 2
-  min_special      = 1
+  special  = false  # Disable special characters to avoid AWS RDS validation issues
+  upper    = true
+  lower    = true
+  numeric  = true
+  min_lower   = 4
+  min_upper   = 4
+  min_numeric = 4
 }
