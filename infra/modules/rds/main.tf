@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.1"
+    }
   }
 }
 
@@ -40,10 +44,13 @@ resource "aws_db_instance" "this" {
   engine                              = each.value.engine
   engine_version                      = try(each.value.engine_version, null)
   instance_class                      = each.value.instance_class
-  db_subnet_group_name                = try(each.value.db_subnet_group_name, null)
-  publicly_accessible                 = try(each.value.publicly_accessible, null)
   allocated_storage                   = try(each.value.allocated_storage, null)
   storage_type                        = try(each.value.storage_type, null)
+  db_name                             = try(each.value.db_name, null)
+  username                            = try(each.value.username, "postgres")
+  password                            = try(each.value.password, random_password.db_password[each.key].result)
+  db_subnet_group_name                = try(each.value.db_subnet_group_name, null)
+  publicly_accessible                 = try(each.value.publicly_accessible, null)
   multi_az                            = try(each.value.multi_az, null)
   performance_insights_enabled        = try(each.value.performance_insights_enabled, null)
   vpc_security_group_ids              = try(each.value.vpc_security_group_ids, null)
@@ -51,4 +58,11 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot                 = true
   # Import-first posture
   lifecycle { ignore_changes = all }
+}
+
+# Generate random passwords for database instances
+resource "random_password" "db_password" {
+  for_each = var.instances
+  length   = 16
+  special  = true
 }

@@ -248,7 +248,7 @@ EOF
                 "rds")
                     # Extract RDS instances and clusters from terragrunt.hcl
                     if grep -q '"instances"' "$hcl_file"; then
-                        # Parse RDS instances using a more sophisticated approach
+                        # Parse RDS instances using improved approach
                         python3 - << EOF
 import re
 import json
@@ -259,15 +259,17 @@ def extract_rds_resources(file_path):
         content = f.read()
     
     # Extract instances configuration block
-    instances_match = re.search(r'"instances"\s*=\s*\{([^}]+)\}', content, re.DOTALL)
+    instances_match = re.search(r'"instances"\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', content, re.DOTALL)
     if instances_match:
         instances_content = instances_match.group(1)
         # Extract instance names (keys in the instances map)
         instance_names = re.findall(r'"([^"]+)"\s*=\s*\{', instances_content)
         
         for name in instance_names:
-            # Extract instance details
-            instance_match = re.search(f'"{re.escape(name)}"\s*=\s*\{{([^}}]+)\}}', instances_content, re.DOTALL)
+            # Extract instance details with more robust parsing
+            # Look for the instance block
+            pattern = f'"{re.escape(name)}"\s*=\s*\{{([^{{}}]*(?:\{{[^{{}}]*\}}[^{{}}]*)*)\}}'
+            instance_match = re.search(pattern, instances_content, re.DOTALL)
             if instance_match:
                 instance_config = instance_match.group(1)
                 
@@ -284,6 +286,41 @@ def extract_rds_resources(file_path):
                 print(json.dumps(instance_data))
 
 extract_rds_resources('$hcl_file')
+EOF
+                    fi
+                    
+                    # Also check for RDS clusters
+                    if grep -q '"clusters"' "$hcl_file"; then
+                        python3 - << EOF
+import re
+import json
+
+def extract_rds_clusters(file_path):
+    with open(file_path, 'r') as f:
+        content = f.read()
+    
+    clusters_match = re.search(r'"clusters"\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', content, re.DOTALL)
+    if clusters_match:
+        clusters_content = clusters_match.group(1)
+        cluster_names = re.findall(r'"([^"]+)"\s*=\s*\{', clusters_content)
+        
+        for name in cluster_names:
+            pattern = f'"{re.escape(name)}"\s*=\s*\{{([^{{}}]*(?:\{{[^{{}}]*\}}[^{{}}]*)*)\}}'
+            cluster_match = re.search(pattern, clusters_content, re.DOTALL)
+            if cluster_match:
+                cluster_config = cluster_match.group(1)
+                
+                engine_match = re.search(r'"engine"\s*=\s*"([^"]+)"', cluster_config)
+                
+                cluster_data = {
+                    "name": name,
+                    "engine": engine_match.group(1) if engine_match else "unknown",
+                    "type": "cluster"
+                }
+                
+                print(json.dumps(cluster_data))
+
+extract_rds_clusters('$hcl_file')
 EOF
                     fi
                     ;;

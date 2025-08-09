@@ -311,52 +311,70 @@ main() {
     
     print_status "probe" "Starting EC2 resource verification for ${environment} in ${region}"
     
-    # Define expected EC2 instances based on environment
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected EC2 resources from the expected file
     local expected_instances=()
-    case $environment in
-        "dev")
-            expected_instances=("aurora-jump-server-dev" "insights-dev-backend" "insights-dev-frontend")
-            ;;
-        "staging")
-            expected_instances=("aurora-jump-server-staging" "insights-staging-backend" "insights-staging-frontend")
-            ;;
-        "prod")
-            expected_instances=("aurora-jump-server" "insights_prod_backend" "insights_prod_frontend")
-            ;;
-    esac
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected instances from JSON file
+        expected_instances=($(jq -r '.expected_resources.ec2.instances[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected EC2 instances: ${expected_instances[*]:-none}"
+    else
+        print_status "warning" "Expected file not found, using environment-based defaults"
+        # Fallback to environment-based defaults if expected file is not available
+        case $environment in
+            "dev")
+                expected_instances=("aurora-jump-server-dev" "insights-dev-backend" "insights-dev-frontend")
+                ;;
+            "staging")
+                expected_instances=("aurora-jump-server-staging" "insights-staging-backend" "insights-staging-frontend")
+                ;;
+            "prod")
+                expected_instances=("aurora-jump-server" "insights_prod_backend" "insights_prod_frontend")
+                ;;
+        esac
+    fi
     
     local found_instances=()
     local missing_instances=()
     
     # Check each expected EC2 instance
     for instance_name in "${expected_instances[@]}"; do
-        print_status "probe" "Verifying EC2 instance: ${instance_name}"
-        
-        if check_ec2_instance "$instance_name" "$region" > "/tmp/ec2_check_${instance_name}.json"; then
-            found_instances+=("$instance_name")
+        if [[ -n "$instance_name" && "$instance_name" != "null" ]]; then
+            print_status "probe" "Verifying EC2 instance: ${instance_name}"
             
-            # Extract instance details for additional checks
-            local instance_data=$(cat "/tmp/ec2_check_${instance_name}.json")
-            local instance_id=$(echo "$instance_data" | jq -r '.instance_id')
-            local instance_type=$(echo "$instance_data" | jq -r '.instance_type')
-            local public_ip=$(echo "$instance_data" | jq -r '.public_ip')
-            local subnet_id=$(echo "$instance_data" | jq -r '.subnet_id')
-            local vpc_id=$(echo "$instance_data" | jq -r '.vpc_id')
-            local security_group=$(echo "$instance_data" | jq -r '.security_group')
-            
-            # Test connectivity
-            local connectivity=$(test_ec2_connectivity "$instance_id" "$instance_type" "$public_ip" "$region")
-            
-            # Validate networking
-            local networking=$(validate_ec2_networking "$instance_id" "$subnet_id" "$vpc_id" "$security_group" "$region")
-            
-            # Combine all information
-            jq --argjson conn "$connectivity" --argjson net "$networking" \
-                '.connectivity = $conn | .networking_validation = $net' \
-                "/tmp/ec2_check_${instance_name}.json" > "/tmp/ec2_check_${instance_name}_final.json"
-            
-        else
-            missing_instances+=("$instance_name")
+            if check_ec2_instance "$instance_name" "$region" > "/tmp/ec2_check_${instance_name}.json"; then
+                found_instances+=("$instance_name")
+                
+                # Extract instance details for additional checks
+                local instance_data=$(cat "/tmp/ec2_check_${instance_name}.json")
+                local instance_id=$(echo "$instance_data" | jq -r '.instance_id')
+                local instance_type=$(echo "$instance_data" | jq -r '.instance_type')
+                local public_ip=$(echo "$instance_data" | jq -r '.public_ip')
+                local subnet_id=$(echo "$instance_data" | jq -r '.subnet_id')
+                local vpc_id=$(echo "$instance_data" | jq -r '.vpc_id')
+                local security_group=$(echo "$instance_data" | jq -r '.security_group')
+                
+                # Test connectivity
+                local connectivity=$(test_ec2_connectivity "$instance_id" "$instance_type" "$public_ip" "$region")
+                
+                # Validate networking
+                local networking=$(validate_ec2_networking "$instance_id" "$subnet_id" "$vpc_id" "$security_group" "$region")
+                
+                # Combine all information
+                jq --argjson conn "$connectivity" --argjson net "$networking" \
+                    '.connectivity = $conn | .networking_validation = $net' \
+                    "/tmp/ec2_check_${instance_name}.json" > "/tmp/ec2_check_${instance_name}_final.json"
+                
+            else
+                missing_instances+=("$instance_name")
+            fi
         fi
     done
     

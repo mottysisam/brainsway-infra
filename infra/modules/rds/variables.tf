@@ -31,10 +31,13 @@ variable "instances" {
     engine                              = string
     engine_version                      = optional(string)
     instance_class                      = string
-    db_subnet_group_name                = optional(string)
-    publicly_accessible                 = optional(bool)
     allocated_storage                   = optional(number)
     storage_type                        = optional(string)
+    db_name                             = optional(string)
+    username                            = optional(string)
+    password                            = optional(string)
+    db_subnet_group_name                = optional(string)
+    publicly_accessible                 = optional(bool)
     multi_az                            = optional(bool)
     performance_insights_enabled        = optional(bool)
     vpc_security_group_ids              = optional(list(string))

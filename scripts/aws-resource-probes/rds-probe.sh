@@ -264,36 +264,63 @@ main() {
         return 0
     fi
     
-    # Extract expected RDS resources (this is a simplified version - in reality, we'd parse the expected file)
-    # For now, we'll check known RDS resources based on the environment
+    # Extract expected RDS resources from the expected file
     local expected_instances=()
-    case $environment in
-        "dev")
-            expected_instances=("bwppudb-dev")
-            ;;
-        "staging")
-            expected_instances=("bwppudb-staging")
-            ;;
-        "prod")
-            expected_instances=("bwppudb")
-            ;;
-    esac
+    local expected_clusters=()
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected instances from JSON file
+        expected_instances=($(jq -r '.expected_resources.rds.instances[].name' "$expected_file" 2>/dev/null || echo ""))
+        expected_clusters=($(jq -r '.expected_resources.rds.clusters[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected RDS instances: ${expected_instances[*]:-none}"
+        print_status "info" "Expected RDS clusters: ${expected_clusters[*]:-none}"
+    else
+        print_status "warning" "Expected file not found, using environment-based defaults"
+        # Fallback to environment-based defaults if expected file is not available
+        case $environment in
+            "dev")
+                expected_instances=("bwppudb-dev")
+                ;;
+            "staging")
+                expected_instances=("bwppudb-staging")
+                ;;
+            "prod")
+                expected_instances=("bwppudb")
+                ;;
+        esac
+    fi
     
     local found_instances=()
     local missing_instances=()
+    local found_clusters=()
+    local missing_clusters=()
     
     # Check each expected RDS instance
     for instance in "${expected_instances[@]}"; do
-        if check_rds_instance "$instance" "$region" > "/tmp/rds_check_${instance}.json"; then
-            found_instances+=("$instance")
-            
-            # Test connectivity
-            local connectivity=$(test_rds_connectivity "$instance" "$region")
-            
-            # Add connectivity info to the result
-            jq --arg conn "$connectivity" '.connectivity = $conn' "/tmp/rds_check_${instance}.json" > "/tmp/rds_check_${instance}_final.json"
-        else
-            missing_instances+=("$instance")
+        if [[ -n "$instance" && "$instance" != "null" ]]; then
+            if check_rds_instance "$instance" "$region" > "/tmp/rds_check_${instance}.json"; then
+                found_instances+=("$instance")
+                
+                # Test connectivity
+                local connectivity=$(test_rds_connectivity "$instance" "$region")
+                
+                # Add connectivity info to the result
+                jq --arg conn "$connectivity" '.connectivity = $conn' "/tmp/rds_check_${instance}.json" > "/tmp/rds_check_${instance}_final.json"
+            else
+                missing_instances+=("$instance")
+            fi
+        fi
+    done
+    
+    # Check each expected RDS cluster
+    for cluster in "${expected_clusters[@]}"; do
+        if [[ -n "$cluster" && "$cluster" != "null" ]]; then
+            if check_rds_cluster "$cluster" "$region" > "/tmp/rds_cluster_check_${cluster}.json"; then
+                found_clusters+=("$cluster")
+            else
+                missing_clusters+=("$cluster")
+            fi
         fi
     done
     
@@ -305,10 +332,10 @@ main() {
         local temp_results="/tmp/rds_results.json"
         cat > "$temp_results" << EOF
 {
-  "instances_found": [$(IFS=,; echo "${found_instances[*]/#/\"}" | sed 's/"/"/g' | sed 's/,$//')]",
-  "instances_missing": [$(IFS=,; echo "${missing_instances[*]/#/\"}" | sed 's/"/"/g' | sed 's/,$//')]",
-  "clusters_found": [],
-  "clusters_missing": []
+  "instances_found": [$(printf '"%s",' "${found_instances[@]}" | sed 's/,$//')]",
+  "instances_missing": [$(printf '"%s",' "${missing_instances[@]}" | sed 's/,$//')]",
+  "clusters_found": [$(printf '"%s",' "${found_clusters[@]}" | sed 's/,$//')]",
+  "clusters_missing": [$(printf '"%s",' "${missing_clusters[@]}" | sed 's/,$//')]"
 }
 EOF
         

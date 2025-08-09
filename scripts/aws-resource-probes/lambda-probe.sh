@@ -106,27 +106,46 @@ main() {
     
     print_status "probe" "Starting Lambda function verification for ${environment} in ${region}"
     
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected Lambda resources from the expected file
     local expected_functions=()
-    case $environment in
-        "dev")
-            expected_functions=("insert-ppu-data-dev" "generatePresignedUrl-dev" "presignedUrlForS3Upload-dev" "sync_clock-dev" "softwareUpdateHandler-dev")
-            ;;
-        "staging")
-            expected_functions=("insert-ppu-data-staging" "generatePresignedUrl-staging" "presignedUrlForS3Upload-staging" "sync_clock-staging" "softwareUpdateHandler-staging")
-            ;;
-        "prod")
-            expected_functions=("insert-ppu-data-dev-insert_ppu" "generatePresignedUrl-v-1-9" "generatePresignedUrl" "presignedUrlForS3Upload" "softwareUpdateHandler" "sync_clock")
-            ;;
-    esac
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected functions from JSON file
+        expected_functions=($(jq -r '.expected_resources.lambda.functions[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected Lambda functions: ${expected_functions[*]:-none}"
+    else
+        print_status "warning" "Expected file not found, using environment-based defaults"
+        # Fallback to environment-based defaults if expected file is not available
+        case $environment in
+            "dev")
+                expected_functions=("insert-ppu-data-dev" "generatePresignedUrl-dev" "presignedUrlForS3Upload-dev" "sync_clock-dev" "softwareUpdateHandler-dev")
+                ;;
+            "staging")
+                expected_functions=("insert-ppu-data-staging" "generatePresignedUrl-staging" "presignedUrlForS3Upload-staging" "sync_clock-staging" "softwareUpdateHandler-staging")
+                ;;
+            "prod")
+                expected_functions=("insert-ppu-data-dev-insert_ppu" "generatePresignedUrl-v-1-9" "generatePresignedUrl" "presignedUrlForS3Upload" "softwareUpdateHandler" "sync_clock")
+                ;;
+        esac
+    fi
     
     local found_functions=()
     local missing_functions=()
     
     for function_name in "${expected_functions[@]}"; do
-        if check_lambda_function "$function_name" "$region" > "/tmp/lambda_check_${function_name}.json"; then
-            found_functions+=("$function_name")
-        else
-            missing_functions+=("$function_name")
+        if [[ -n "$function_name" && "$function_name" != "null" ]]; then
+            if check_lambda_function "$function_name" "$region" > "/tmp/lambda_check_${function_name}.json"; then
+                found_functions+=("$function_name")
+            else
+                missing_functions+=("$function_name")
+            fi
         fi
     done
     

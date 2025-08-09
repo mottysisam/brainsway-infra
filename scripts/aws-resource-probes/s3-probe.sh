@@ -127,27 +127,46 @@ main() {
     
     print_status "probe" "Starting S3 bucket verification for ${environment} in ${region}"
     
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected S3 resources from the expected file
     local expected_buckets=()
-    case $environment in
-        "dev")
-            expected_buckets=("bw-tf-state-dev-us-east-2" "bw-ppu-data-dev" "bw-software-updates-dev")
-            ;;
-        "staging")
-            expected_buckets=("bw-tf-state-staging-us-east-2" "bw-ppu-data-staging" "bw-software-updates-staging")
-            ;;
-        "prod")
-            expected_buckets=("bw-tf-state-prod-us-east-2" "bw-ppu-data" "bw-software-updates")
-            ;;
-    esac
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected buckets from JSON file
+        expected_buckets=($(jq -r '.expected_resources.s3.buckets[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected S3 buckets: ${expected_buckets[*]:-none}"
+    else
+        print_status "warning" "Expected file not found, using environment-based defaults"
+        # Fallback to environment-based defaults if expected file is not available
+        case $environment in
+            "dev")
+                expected_buckets=("bw-tf-state-dev-us-east-2" "bw-ppu-data-dev" "bw-software-updates-dev")
+                ;;
+            "staging")
+                expected_buckets=("bw-tf-state-staging-us-east-2" "bw-ppu-data-staging" "bw-software-updates-staging")
+                ;;
+            "prod")
+                expected_buckets=("bw-tf-state-prod-us-east-2" "bw-ppu-data" "bw-software-updates")
+                ;;
+        esac
+    fi
     
     local found_buckets=()
     local missing_buckets=()
     
     for bucket_name in "${expected_buckets[@]}"; do
-        if check_s3_bucket "$bucket_name" "$region" > "/tmp/s3_check_${bucket_name}.json"; then
-            found_buckets+=("$bucket_name")
-        else
-            missing_buckets+=("$bucket_name")
+        if [[ -n "$bucket_name" && "$bucket_name" != "null" ]]; then
+            if check_s3_bucket "$bucket_name" "$region" > "/tmp/s3_check_${bucket_name}.json"; then
+                found_buckets+=("$bucket_name")
+            else
+                missing_buckets+=("$bucket_name")
+            fi
         fi
     done
     
