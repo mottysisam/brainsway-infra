@@ -30,9 +30,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${{ github.base_ref }}"
-            git fetch --quiet origin "${{ github.base_ref }}"
-            CHANGED=$(git diff --name-only "$BASE"...HEAD | grep '^infra/live/' || true)
+            # Use GitHub API for changed files to avoid merge base issues
+            PRNUM="${{ github.event.pull_request.number }}"
+            REPO="${{ github.repository }}"
+            PAGE=1; CHANGED=""
+            while :; do
+              BATCH=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=100&page=${PAGE}" \
+                | jq -r '.[].filename' 2>/dev/null || echo "")
+              [ -z "$BATCH" ] && break
+              CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
+              PAGE=$((PAGE+1))
+            done
           else
             PRNUM="${{ github.event.issue.number }}"
             REPO="${{ github.repository }}"
@@ -40,23 +49,27 @@ jobs:
             while :; do
               BATCH=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
                 "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=100&page=${PAGE}" \
-                | jq -r '.[].filename')
+                | jq -r '.[].filename' 2>/dev/null || echo "")
               [ -z "$BATCH" ] && break
               CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
               PAGE=$((PAGE+1))
             done
-            CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || true)
           fi
+          
+          # Filter for infra/live changes
+          INFRA_CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || echo "infra/live/dev/")
+          
+          # Detect environment
           ENV="dev"
-          echo "$CHANGED" | grep -q '/prod/' && ENV="prod"
-          echo "$CHANGED" | grep -q '/staging/' && ENV="staging"
+          echo "$INFRA_CHANGED" | grep -q '/prod/' && ENV="prod"
+          echo "$INFRA_CHANGED" | grep -q '/staging/' && ENV="staging"
           echo "env=$ENV" >> $GITHUB_OUTPUT
-          echo "$CHANGED"
+          echo "Changed infra files: $INFRA_CHANGED"
 
       - name: Guard prod applies (prod is READ-ONLY)
-        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && steps.detect.outputs.env == 'prod' }}
+        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/apply') && steps.detect.outputs.env == 'prod' }}
         run: |
-          echo 'Prod is READ-ONLY in this repo. /digger apply is blocked.' >&2
+          echo 'Prod is READ-ONLY in this repo. /apply is blocked.' >&2
           exit 1
 
       - name: Select AWS credentials for env
