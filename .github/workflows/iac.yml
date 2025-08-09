@@ -271,6 +271,214 @@ jobs:
             terragrunt run-all plan -no-color -parallelism 4
           fi
 
+      - name: Verify AWS Resources After Deployment
+        id: verification
+        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply'))) }}
+        run: |
+          echo "🔍 Starting AWS resource verification for ${{ matrix.environment }} environment..."
+          
+          # Make verification script executable
+          chmod +x scripts/verify-deployment.sh
+          
+          # Run verification with 10-minute timeout for eventual consistency
+          VERIFICATION_OUTPUT_FILE="verification-${{ matrix.environment }}-$(date +%Y%m%d-%H%M%S).json"
+          
+          if ./scripts/verify-deployment.sh \
+            --environment "${{ matrix.environment }}" \
+            --region "us-east-2" \
+            --config "infra/live" \
+            --output "$VERIFICATION_OUTPUT_FILE" \
+            --wait-time 600; then
+            echo "verification_status=success" >> $GITHUB_OUTPUT
+            echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "✅ Resource verification completed successfully"
+          else
+            VERIFICATION_EXIT_CODE=$?
+            echo "verification_status=partial" >> $GITHUB_OUTPUT
+            echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "verification_exit_code=$VERIFICATION_EXIT_CODE" >> $GITHUB_OUTPUT
+            echo "⚠️ Resource verification completed with issues (exit code: $VERIFICATION_EXIT_CODE)"
+          fi
+
+      - name: Upload Verification Report
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report-${{ matrix.environment }}
+          path: ${{ steps.verification.outputs.verification_file }}
+          retention-days: 30
+
+      - name: Install nodemailer for email notifications
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        run: |
+          cd /tmp
+          npm init -y
+          npm install nodemailer
+
+      - name: Send Email Notification
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        uses: actions/github-script@v7
+        env:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Add nodemailer from temp directory
+            const nodemailerPath = path.join('/tmp', 'node_modules', 'nodemailer');
+            const nodemailer = require(nodemailerPath);
+            
+            // Read verification results
+            const verificationFile = '${{ steps.verification.outputs.verification_file }}';
+            let verificationData = {};
+            
+            if (fs.existsSync(verificationFile)) {
+              const rawData = fs.readFileSync(verificationFile, 'utf8');
+              verificationData = JSON.parse(rawData);
+            }
+            
+            const environment = '${{ matrix.environment }}';
+            const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const jobStatus = '${{ job.status }}';
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const timestamp = new Date().toISOString();
+            
+            // Create SMTP transporter
+            const transporter = nodemailer.createTransporter({
+              host: process.env.SMTP_SERVER,
+              port: parseInt(process.env.SMTP_PORT) || 587,
+              secure: false,
+              auth: {
+                user: process.env.SMTP_USERNAME,
+                pass: process.env.SMTP_PASSWORD,
+              },
+            });
+            
+            // Generate HTML email content
+            const summary = verificationData.summary || {};
+            const metadata = verificationData.metadata || {};
+            
+            const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>AWS Deployment Verification Report</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f6f8fa; }
+                .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+                .header { background: ${verificationStatus === 'success' ? '#28a745' : verificationStatus === 'partial' ? '#ffa500' : '#dc3545'}; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+                .content { padding: 20px; }
+                .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+                .metric { background: #f1f3f4; padding: 15px; border-radius: 6px; text-align: center; }
+                .metric-value { font-size: 24px; font-weight: bold; color: #1f2937; }
+                .metric-label { font-size: 14px; color: #6b7280; margin-top: 5px; }
+                .services { margin: 20px 0; }
+                .service { margin: 10px 0; padding: 10px; border-left: 4px solid #e5e7eb; background: #f9fafb; }
+                .service.success { border-left-color: #10b981; }
+                .service.warning { border-left-color: #f59e0b; }
+                .footer { background: #f8f9fa; padding: 15px; border-radius: 0 0 8px 8px; font-size: 12px; color: #6b7280; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>🔍 AWS Deployment Verification Report</h1>
+                  <p><strong>Environment:</strong> ${environment.toUpperCase()}</p>
+                  <p><strong>Status:</strong> ${verificationStatus.toUpperCase()}</p>
+                  <p><strong>Timestamp:</strong> ${timestamp}</p>
+                </div>
+                
+                <div class="content">
+                  <div class="summary">
+                    <div class="metric">
+                      <div class="metric-value">${summary.total_expected || 0}</div>
+                      <div class="metric-label">Expected Resources</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value" style="color: #10b981;">${summary.total_found || 0}</div>
+                      <div class="metric-label">Resources Found</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value" style="color: #dc3545;">${summary.total_missing || 0}</div>
+                      <div class="metric-label">Resources Missing</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${summary.success_rate || 0}%</div>
+                      <div class="metric-label">Success Rate</div>
+                    </div>
+                  </div>
+                  
+                  <h3>📊 Service Breakdown</h3>
+                  <div class="services">
+            `;
+            
+            // Add service breakdown
+            const verification = verificationData.verification_results || {};
+            Object.entries(verification).forEach(([serviceName, serviceData]) => {
+              let foundCount = 0;
+              let missingCount = 0;
+              
+              Object.entries(serviceData).forEach(([resourceType, resources]) => {
+                if (resourceType.includes('found') && Array.isArray(resources)) {
+                  foundCount += resources.length;
+                } else if (resourceType.includes('missing') && Array.isArray(resources)) {
+                  missingCount += resources.length;
+                }
+              });
+              
+              if (foundCount > 0 || missingCount > 0) {
+                const serviceClass = missingCount === 0 ? 'success' : 'warning';
+                htmlContent += `
+                  <div class="service ${serviceClass}">
+                    <strong>${serviceName.toUpperCase()}</strong>: ${foundCount} found, ${missingCount} missing
+                  </div>
+                `;
+              }
+            });
+            
+            htmlContent += `
+                  </div>
+                  
+                  <h3>🔗 Links</h3>
+                  <p><a href="${runUrl}">View CI/CD Logs</a></p>
+                  <p><a href="https://github.com/${{ github.repository }}">Repository</a></p>
+                </div>
+                
+                <div class="footer">
+                  <p>Generated by brainsway-infra CI/CD Pipeline</p>
+                  <p>Duration: ${metadata.verification_duration_seconds || 0} seconds</p>
+                </div>
+              </div>
+            </body>
+            </html>
+            `;
+            
+            // Send email
+            const mailOptions = {
+              from: process.env.SMTP_USERNAME,
+              to: process.env.NOTIFICATION_EMAIL,
+              subject: `🔍 AWS Deployment Verification - ${environment.toUpperCase()} - ${verificationStatus.toUpperCase()}`,
+              html: htmlContent,
+              attachments: [{
+                filename: `verification-${environment}-${new Date().toISOString().split('T')[0]}.json`,
+                path: verificationFile
+              }]
+            };
+            
+            try {
+              await transporter.sendMail(mailOptions);
+              console.log('✅ Email notification sent successfully');
+            } catch (error) {
+              console.error('❌ Failed to send email notification:', error);
+              // Don't fail the job if email fails
+            }
+
       - name: Update status check on completion
         if: always() && github.event_name == 'issue_comment'
         uses: actions/github-script@v7
@@ -321,12 +529,26 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const prNumber = '${{ steps.pr-context.outputs.pr_number }}';
             const environment = '${{ matrix.environment }}';
             const isApply = '${{ github.event.comment.body }}'.includes('/digger apply');
             const action = isApply ? 'deploy' : 'plan';
             const jobStatus = '${{ job.status }}';
+            const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const verificationFile = '${{ steps.verification.outputs.verification_file }}';
             const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            
+            // Read verification results if available
+            let verificationData = {};
+            if (verificationFile && fs.existsSync(verificationFile)) {
+              try {
+                const rawData = fs.readFileSync(verificationFile, 'utf8');
+                verificationData = JSON.parse(rawData);
+              } catch (error) {
+                console.log('Could not read verification file:', error);
+              }
+            }
             
             // Find existing deployment summary comment
             const comments = await github.rest.issues.listComments({
@@ -349,6 +571,28 @@ jobs:
             commentBody += `### Current Deployment\n`;
             commentBody += `${status} **${action.toUpperCase()}** ${environment.toUpperCase()} - ${statusText}\n`;
             commentBody += `🔗 [View logs](${runUrl})\n\n`;
+            
+            // Add verification results if available
+            if (verificationData.summary && isApply) {
+              const summary = verificationData.summary;
+              const verificationIcon = verificationStatus === 'success' ? '✅' : verificationStatus === 'partial' ? '⚠️' : '❌';
+              
+              commentBody += `### ${verificationIcon} Resource Verification\n`;
+              commentBody += `- **Expected:** ${summary.total_expected || 0} resources\n`;
+              commentBody += `- **Found:** ${summary.total_found || 0} resources ✅\n`;
+              commentBody += `- **Missing:** ${summary.total_missing || 0} resources ❌\n`;
+              commentBody += `- **Success Rate:** ${summary.success_rate || 0}%\n\n`;
+              
+              if (summary.total_missing > 0) {
+                commentBody += `⚠️ **Some resources were not found after deployment.** This could indicate:\n`;
+                commentBody += `- Resources are still being created (AWS eventual consistency)\n`;
+                commentBody += `- Resources failed to deploy\n`;
+                commentBody += `- Verification script needs adjustment\n\n`;
+              }
+              
+              commentBody += `📊 [Download verification report](${runUrl}) (check artifacts)\n\n`;
+            }
+            
             commentBody += `### Commands\n`;
             commentBody += `- \`/digger plan\` - Plan all environments\n`;
             commentBody += `- \`/digger apply dev\` - Deploy to dev environment\n`;
