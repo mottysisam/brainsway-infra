@@ -53,15 +53,15 @@ import_maps/                 # optional import maps (prod adoption)
 
 * **Secrets required (repo level):**
 
-  * `AWS_ROLE_IAC_DEV`, `AWS_ROLE_IAC_STAGING`, `AWS_ROLE_IAC_PROD` → OIDC role ARNs.
+  * `AWS_ACCESS_KEY_ID_DEV/STAGING/PROD` and `AWS_SECRET_ACCESS_KEY_DEV/STAGING/PROD` → AWS access keys per env.
 * **Workflow expectations:** `.github/workflows/iac.yml` must:
 
   1. Detect env from changed paths under `infra/live/**`.
   2. **Block prod applies** (read‑only policy) or require an explicit prod gate if policy changes later.
-  3. Assume env‑specific OIDC role and run Digger.
+  3. Use env‑specific AWS access keys and run Digger.
 * **If CI files go missing** (e.g., merge removed them): **Claude must recreate the CI patch** consisting of:
 
-  * `.github/workflows/iac.yml` (env detection + prod read‑only guard + OIDC + Digger)
+  * `.github/workflows/iac.yml` (env detection + prod read‑only guard + AWS access keys + Digger)
   * `digger.yml` (terragrunt run‑all workflow)
   * Optional `.github/workflows/prod-import.yml` (Terraformer discovery → import scripts)
     Use the templates encoded in **BOOTSTRAP\_PROMPT.md**.
@@ -75,12 +75,20 @@ import_maps/                 # optional import maps (prod adoption)
    * If missing, **recreate** from the bootstrap templates; commit with `ci: restore IaC workflows`.
 2. **Secrets check**
 
-   * Ensure repo secrets `AWS_ROLE_IAC_DEV/STAGING/PROD` exist; if not, instruct how to create (outputs from `bootstrap/iam-oidc`).
+   * Ensure repo secrets `AWS_ACCESS_KEY_ID_DEV/STAGING/PROD` and `AWS_SECRET_ACCESS_KEY_DEV/STAGING/PROD` exist.
 3. **Account safety**
 
    * Remind to export the right `AWS_PROFILE` locally and verify with `aws sts get-caller-identity`.
 4. **Make changes** under `infra/live/<env>/<region>/<stack>` using modules in `infra/modules/*`.
 5. **Open PR** and rely on Digger for plans. Use `/digger apply` only for **dev/staging** after approval. **Never** apply prod.
+6. **CI/CD Tracking Protocol**
+
+   * **MANDATORY**: After every commit/push, track CI until completion and report results.
+   * If CI passes ✅: Simply notify "CI passed successfully"
+   * If CI fails ❌: Continue iterative loop to fix issues until CI passes
+   * **Never move to next task** until CI is green and passing
+   * Use `gh run list --branch <branch> --limit 2` and `gh run view <run-id> --log` for monitoring
+   * This ensures code quality and prevents broken workflows from being merged
 
 ## Production adoption (import‑first)
 
