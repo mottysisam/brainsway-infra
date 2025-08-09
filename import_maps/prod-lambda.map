@@ -1,0 +1,7 @@
+module.lambda.aws_lambda_function.this["insert-ppu-data-dev-insert_ppu"] insert-ppu-data-dev-insert_ppu
+module.lambda.aws_lambda_alias.this["insert-ppu-data-dev-insert_ppu:latest"] insert-ppu-data-dev-insert_ppu:latest
+module.lambda.aws_lambda_function.this["generatePresignedUrl-v-1-9"] generatePresignedUrl-v-1-9
+module.lambda.aws_lambda_function.this["generatePresignedUrl"] generatePresignedUrl
+module.lambda.aws_lambda_function.this["presignedUrlForS3Upload"] presignedUrlForS3Upload
+module.lambda.aws_lambda_function.this["sync_clock"] sync_clock
+module.lambda.aws_lambda_function.this["softwareUpdateHandler"] softwareUpdateHandler

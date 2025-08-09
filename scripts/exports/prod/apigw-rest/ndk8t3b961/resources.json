@@ -1,0 +1,17 @@
+{
+    "items": [
+        {
+            "id": "x5yrnvrzea",
+            "path": "/"
+        },
+        {
+            "id": "ytmew5",
+            "parentId": "x5yrnvrzea",
+            "pathPart": "s3url",
+            "path": "/s3url",
+            "resourceMethods": {
+                "GET": {}
+            }
+        }
+    ]
+}

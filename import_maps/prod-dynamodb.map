@@ -1,0 +1,2 @@
+module.dynamodb.aws_dynamodb_table.this["event_log"] event_log
+module.dynamodb.aws_dynamodb_table.this["sw_update"] sw_update

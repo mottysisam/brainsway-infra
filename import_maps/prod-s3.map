@@ -1,0 +1,2 @@
+module.s3.aws_s3_bucket.this["stsoftwareupdate"] stsoftwareupdate
+module.s3.aws_s3_bucket.this["steventlogs"] steventlogs

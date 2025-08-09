@@ -1,133 +1,116 @@
 # CLAUDE.md — brainsway‑infra (Memory)
 
-> **Purpose:** This file is Claude Code’s *memory* for the `brainsway-infra` repo. Keep it short, high-signal, and always true. Bootstrap/runbooks live elsewhere (see the separate "Claude Bootstrap Prompt — Terragrunt + Digger").
+> **Purpose:** This is Claude Code’s short, always‑true memory for this repo. Keep it tight. All long runbooks live in **BOOTSTRAP\_PROMPT.md** (same repo).
 
 ---
 
 ## What this repo is
 
-* **Infrastructure as Code** for AWS using **Terraform modules** + **Terragrunt (live)**.
-* **CI/CD** for IaC via **Digger** on **GitHub Actions** (PR‑centric plans/applies).
-* Goal: **DRY, gated, auditable** changes with hard protection against wrong‑account deploys.
+* AWS **IaC** using **Terraform modules** + **Terragrunt (live)**.
+* PR‑driven CI/CD via **Digger on GitHub Actions**.
+* **Prod is read‑only**: *plan/import only*, no applies. Dev/Staging are writable via PR gates.
 
-### Golden rules
+## Canonical environments
 
-1. **Do not** run raw `terraform` in live stacks. Use `terragrunt` locally; **Digger** runs in CI.
-2. **Every change** goes through a PR. Apply happens via a PR comment (`/digger apply`) after approvals.
-3. **Production is sacred.** Extra approvals + labels required. No surprise destroys.
-
----
-
-## Environments (canonical)
-
-* **prod** → `154948530138` | profile **bwamazonprod** | 🔴 Extreme caution
+* **prod** → `154948530138` | profile **bwamazonprod** | 🔴 **READ‑ONLY**
 * **staging** → `574210586915` | profile **bwamazonstaging**
 * **dev** → `824357028182` | profile **bwamazondev**
 * **Region (default):** `us-east-2`
 
-> **Typo trap:** it’s `bwamazonstaging` (not `bwamozonstaging`).
-
----
+> Typo trap: it’s `bwamazonstaging` (not `bwamozonstaging`).
 
 ## Directory contract
 
 ```
 infra/
-├─ modules/                 # Pure Terraform modules (no Terragrunt here)
-└─ live/                    # Terragrunt instantiation per env/region/stack
-   ├─ dev/      ├─ staging/ └─ prod/
+├─ modules/                  # Pure Terraform modules
+└─ live/                     # Terragrunt per env/region/stack
+   ├─ dev/ ├─ staging/ └─ prod/
        └─ us-east-2/<stack>/terragrunt.hcl
-bootstrap/                  # one-off bootstrap TF (state, OIDC roles)
-.github/workflows/          # iac.yml (Digger)
-digger.yml                  # Digger project/workflow definition
+.github/workflows/           # iac.yml (+ prod-import.yml optional)
+digger.yml                   # Digger config
+bootstrap/                   # one-off TF for state + OIDC
+import_maps/                 # optional import maps (prod adoption)
 ```
 
----
+## State & provider (must hold)
 
-## State & providers (contract, not runbook)
+* Remote state **per env**: S3 bucket + DynamoDB lock table.
 
-* **Remote state per env**: S3 bucket + DynamoDB lock table.
+  * Buckets: `bw-tf-state-<env>-<region>`; Locks: `bw-tf-locks-<env>`.
+* `infra/live/<env>/env.hcl` defines: `env`, `aws_account`, `aws_region`, `state_bucket`, `lock_table`.
+* Root `infra/live/terragrunt.hcl` generates backend/provider and injects default tags (`Environment`, `ManagedBy=Terragrunt+Digger`, `Owner=Brainsway`, plus compliance/cost tags if present).
 
-  * Buckets follow: `bw-tf-state-<env>-<region>` (example: `bw-tf-state-dev-us-east-2`).
-  * Lock tables: `bw-tf-locks-<env>`.
-* Each `infra/live/<env>/env.hcl` must define:
+## Safety rails (non‑negotiable)
 
-  * `env`, `aws_account`, `aws_region`, `state_bucket`, `lock_table`.
-* Terragrunt root (`infra/live/terragrunt.hcl`) **generates** `backend.tf` and `provider.aws.tf` and injects **default tags**:
-
-  * `Environment`, `ManagedBy=Terragrunt+Digger`, `Owner=Brainsway`.
-
----
-
-## Safety rails (must always hold)
-
-* **Account gate:** A Terragrunt `before_hook` compares `aws sts get-caller-identity` to the expected `aws_account` from `env.hcl` and **fails hard** on mismatch.
-* **Prod gating:** Applies to `infra/live/prod/**` require:
-
-  * GitHub label \`\` *and* GitHub **Environment: production** approval.
-* **No blind destroys:** Reject plans with destroys in prod unless explicitly approved by owners.
-* **Least privilege:** No broad IAM (e.g., `AdministratorAccess`) attached to prod CI role.
-* **Tags required:** Modules must surface a `tags` input and merge default tags.
-
----
+* **Account gate:** Terragrunt `before_hook` must compare `aws sts get-caller-identity` to `aws_account` and **fail hard** on mismatch.
+* **Prod read‑only:** CI must **deny** `/digger apply` for changes under `infra/live/prod/**`. Only plan + imports are allowed.
+* **PR‑only**: No direct pushes to `main` for infra changes.
+* **Least privilege in prod CI role:** ReadOnlyAccess + state write only; no Admin.
+* **Tags required:** Every module surfaces `tags` and merges default tags.
 
 ## CI/CD contract (Digger + GH Actions)
 
-* **Secrets (repo level):**
+* **Secrets required (repo level):**
 
-  * `AWS_ROLE_IAC_DEV`, `AWS_ROLE_IAC_STAGING`, `AWS_ROLE_IAC_PROD` → IAM Role ARNs assumed via OIDC.
-* **Triggering:**
+  * `AWS_ACCESS_KEY_ID_DEV/STAGING/PROD` and `AWS_SECRET_ACCESS_KEY_DEV/STAGING/PROD` → AWS access keys per env.
+* **Workflow expectations:** `.github/workflows/iac.yml` must:
 
-  * `pull_request` on changes under `infra/live/**` → **plan** comment by Digger.
-  * `issue_comment` with `/digger apply` (post‑approval) → **apply** via Digger.
-* **Env detection:** The workflow infers env (dev/staging/prod) from changed paths and picks the matching role secret.
+  1. Detect env from changed paths under `infra/live/**`.
+  2. **Block prod applies** (read‑only policy) or require an explicit prod gate if policy changes later.
+  3. Use env‑specific AWS access keys and run Digger.
+* **If CI files go missing** (e.g., merge removed them): **Claude must recreate the CI patch** consisting of:
 
----
+  * `.github/workflows/iac.yml` (env detection + prod read‑only guard + AWS access keys + Digger)
+  * `digger.yml` (terragrunt run‑all workflow)
+  * Optional `.github/workflows/prod-import.yml` (Terraformer discovery → import scripts)
+    Use the templates encoded in **BOOTSTRAP\_PROMPT.md**.
 
-## How to work (behavioral)
+## How Claude should work (always)
 
-* **Add infra:** create or modify a stack under `infra/live/<env>/<region>/<stack>/terragrunt.hcl`; module source points into `infra/modules/...` (or git/registry when modularized).
-* **Open PR:** expect Digger to post a **plan**. If not, fix the workflow or paths.
-* **Apply:** comment `/digger apply` on the PR. For prod, ensure gates are satisfied first.
-* **Never** push directly to `main` for infra changes.
+1. **Sanity first**
 
----
+   * Confirm branch ≠ `main` for infra edits.
+   * Verify presence of: `infra/live/terragrunt.hcl`, `infra/live/<env>/env.hcl`, `digger.yml`, `.github/workflows/iac.yml`.
+   * If missing, **recreate** from the bootstrap templates; commit with `ci: restore IaC workflows`.
+2. **Secrets check**
 
-## Incident mini‑playbook (wrong account)
+   * Ensure repo secrets `AWS_ACCESS_KEY_ID_DEV/STAGING/PROD` and `AWS_SECRET_ACCESS_KEY_DEV/STAGING/PROD` exist.
+3. **Account safety**
 
-1. **Stop**: cancel runs; capture `aws sts get-caller-identity`.
-2. **List** stray resources; tag/quarantine.
-3. **Destroy** safely with reviewers; document in PR.
-4. **Fix** credentials/gates and commit a test plan proving the guard works.
+   * Remind to export the right `AWS_PROFILE` locally and verify with `aws sts get-caller-identity`.
+4. **Make changes** under `infra/live/<env>/<region>/<stack>` using modules in `infra/modules/*`.
+5. **Open PR** and rely on Digger for plans. Use `/digger apply` only for **dev/staging** after approval. **Never** apply prod.
+6. **CI/CD Tracking Protocol**
 
----
+   * **MANDATORY**: After every commit/push, track CI until completion and report results.
+   * If CI passes ✅: Simply notify "CI passed successfully"
+   * If CI fails ❌: Continue iterative loop to fix issues until CI passes
+   * **Never move to next task** until CI is green and passing
+   * Use `gh run list --branch <branch> --limit 2` and `gh run view <run-id> --log` for monitoring
+   * This ensures code quality and prevents broken workflows from being merged
 
-## Versions (pin for reproducibility)
+## Production adoption (import‑first)
 
-* Terraform `~> 1.7.x`
-* Terragrunt `~> 0.58.x`
-* AWS provider `>= 5.0`
+* For resources already in prod:
 
----
+  1. Model the real config in modules/inputs under `infra/live/prod/...`.
+  2. Generate an import map (Terraformer or manual) aligned to module addresses.
+  3. From the stack dir: `terragrunt init`; run imports; `terragrunt plan` must show **no changes**.
 
-## Ownership & reviews
+## Versions (pin)
 
-* CODEOWNERS must require infra owners on `infra/live/prod/**`.
-* Changes affecting **bootstrap** or **terragrunt root** require at least one infra owner + one security reviewer.
+* Terraform `~> 1.7.x` · Terragrunt `~> 0.58.x` · AWS provider `>= 5.0`
 
----
-
-## Quick local commands (reference)
+## Quick references
 
 ```bash
-# Verify creds (must show the correct account for your env)
+# Verify creds for the env you’re touching
 aws sts get-caller-identity --profile bwamazondev
 
 # From a child stack dir
-tterragrunt plan
-terragrunt apply
+terragrunt plan
+# (Prod) Only plan/import; do not apply
 ```
 
-> If local plan fails the account gate, fix your AWS creds/profile before proceeding.
-
----
+**This file is the truth.** If reality drifts (e.g., prod applies creep in), update this doc **and** the CI to enforce the rule.

@@ -1,0 +1,15 @@
+{
+    "item": [
+        {
+            "deploymentId": "0ms0vd",
+            "stageName": "prod",
+            "description": "production",
+            "cacheClusterEnabled": false,
+            "cacheClusterStatus": "NOT_AVAILABLE",
+            "methodSettings": {},
+            "tracingEnabled": false,
+            "createdDate": "2018-09-20T10:47:00+03:00",
+            "lastUpdatedDate": "2019-08-04T11:42:58+03:00"
+        }
+    ]
+}

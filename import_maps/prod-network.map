@@ -1,0 +1,13 @@
+module.network.aws_vpc.this vpc-d2a9d9bb
+module.network.aws_subnet.this["subnet-fa22af81"] subnet-fa22af81
+module.network.aws_subnet.this["subnet-40895a0d"] subnet-40895a0d
+module.network.aws_subnet.this["subnet-47cb8d2e"] subnet-47cb8d2e
+module.network.aws_route_table.this["rtb-ec83c185"] rtb-ec83c185
+module.network.aws_internet_gateway.this["igw-a14bc2c8"] igw-a14bc2c8
+module.network.aws_vpc_endpoint.this["vpce-03e83da65d72240ba"] vpce-03e83da65d72240ba
+module.network.aws_vpc_endpoint.this["vpce-04045e27e5fe64d3a"] vpce-04045e27e5fe64d3a
+module.network.aws_vpc_endpoint.this["vpce-05c18f64c5b29e501"] vpce-05c18f64c5b29e501
+module.network.aws_vpc_endpoint.this["vpce-038ae18e92eb1b316"] vpce-038ae18e92eb1b316
+module.network.aws_vpc_endpoint.this["vpce-0e316e0836057e662"] vpce-0e316e0836057e662
+module.network.aws_vpc_endpoint.this["vpce-0495e09585e7af9d6"] vpce-0495e09585e7af9d6
+module.network.aws_vpc_endpoint.this["vpce-0bd867c875b75c7a3"] vpce-0bd867c875b75c7a3

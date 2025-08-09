@@ -1,0 +1,18 @@
+{
+    "items": [
+        {
+            "id": "hryogq0yt9",
+            "path": "/"
+        },
+        {
+            "id": "yztqqb",
+            "parentId": "hryogq0yt9",
+            "pathPart": "load",
+            "path": "/load",
+            "resourceMethods": {
+                "OPTIONS": {},
+                "POST": {}
+            }
+        }
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "id": "j1w31ky0s3",
+    "name": "sw update",
+    "description": "call to lambda which handles sw update cases",
+    "createdDate": "2018-02-12T09:21:54+02:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "EDGE"
+        ]
+    },
+    "tags": {},
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "5rykjqsxe5"
+}
