@@ -44,55 +44,5 @@ inputs = {
         "Environment": "dev"
       }
     }
-  },
-  "stages": {
-    "dev-s3-url-v18/dev": {
-      "rest_api_id": "dev-s3-url-v18",
-      "stage_name": "dev",
-      "deployment_id": null,  # Will be generated on first deployment
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "dev-s3-url/dev": {
-      "rest_api_id": "dev-s3-url",
-      "stage_name": "dev",
-      "deployment_id": null,
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "dev-sync-clock-api/dev": {
-      "rest_api_id": "dev-sync-clock-api",
-      "stage_name": "dev",
-      "deployment_id": null,
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "dev-sw-update/dev": {
-      "rest_api_id": "dev-sw-update",
-      "stage_name": "dev",
-      "deployment_id": null,
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "dev-s3-url-2/dev": {
-      "rest_api_id": "dev-s3-url-2",
-      "stage_name": "dev",
-      "deployment_id": null,
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "dev-insert-ppu-data/dev": {
-      "rest_api_id": "dev-insert-ppu-data",
-      "stage_name": "dev",
-      "deployment_id": null,
-      "description": "Development environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    }
   }
 }
