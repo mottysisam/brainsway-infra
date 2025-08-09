@@ -35,5 +35,6 @@ set -euo pipefail
 EXPECTED="${local.env_cfg.aws_account}"
 ACTUAL=$(aws sts get-caller-identity --query Account --output text)
 if [ "$ACTUAL" != "$EXPECTED" ]; then echo "FATAL: Wrong AWS account. Expected $EXPECTED, got $ACTUAL" >&2; exit 1; fi
-EOC]
+EOC
+  ]
 }
