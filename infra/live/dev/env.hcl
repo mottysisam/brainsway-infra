@@ -1,1 +1,7 @@
-locals { env="dev" aws_account="824357028182" aws_region="us-east-2" state_bucket="bw-tf-state-dev-us-east-2" lock_table="bw-tf-locks-dev" }
+locals {
+  env          = "dev"
+  aws_account  = "824357028182"
+  aws_region   = "us-east-2"
+  state_bucket = "bw-tf-state-dev-us-east-2"
+  lock_table   = "bw-tf-locks-dev"
+}
