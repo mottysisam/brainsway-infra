@@ -5,11 +5,14 @@ concurrency:
 on:
   pull_request:
     paths: [ 'infra/live/**' ]
+  push:
+    branches: [ main ]
+    paths: [ 'infra/live/**' ]
   issue_comment:
     types: [created]
 jobs:
   detect-environments:
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,7 +44,11 @@ jobs:
               CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
               PAGE=$((PAGE+1))
             done
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # For push events, get files changed in the commit
+            CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
           else
+            # Issue comment - get files from associated PR
             PRNUM="${{ github.event.issue.number }}"
             REPO="${{ github.repository }}"
             PAGE=1; CHANGED=""
@@ -154,9 +161,51 @@ jobs:
 
       - name: Run Digger for ${{ matrix.environment }}
         working-directory: infra/live/${{ matrix.environment }}
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
         run: |
           echo "Running Terragrunt for ${{ matrix.environment }} environment"
           echo "Working directory: $(pwd)"
+          echo "Event: ${{ github.event_name }}"
           echo "Available modules:"
           find . -name "terragrunt.hcl" -type f | head -10
-          terragrunt run-all plan -no-color -parallelism 4
+          
+          # Determine action based on event type and environment
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            echo "🚀 Auto-deploying to dev environment on merge to main"
+            terragrunt run-all apply -auto-approve -no-color -parallelism 2
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body }}" | grep -q "/digger apply"; then
+            echo "🎯 Manual deployment triggered via comment"
+            if echo "${{ github.event.comment.body }}" | grep -q "/digger apply.*${{ matrix.environment }}"; then
+              echo "Deploying to ${{ matrix.environment }} environment"
+              terragrunt run-all apply -auto-approve -no-color -parallelism 2
+            elif echo "${{ github.event.comment.body }}" | grep -q "^/digger apply$"; then
+              echo "Deploying to ${{ matrix.environment }} environment (apply all)"
+              terragrunt run-all apply -auto-approve -no-color -parallelism 2
+            else
+              echo "Planning for ${{ matrix.environment }} environment"
+              terragrunt run-all plan -no-color -parallelism 4
+            fi
+          else
+            echo "📋 Running plan for ${{ matrix.environment }} environment"
+            terragrunt run-all plan -no-color -parallelism 4
+          fi
+
+      - name: Deployment Status Notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+              echo "✅ Successfully auto-deployed to ${{ matrix.environment }} environment"
+              echo "🎯 Resources deployed via merge to main branch"
+            elif echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+              echo "✅ Successfully deployed to ${{ matrix.environment }} environment"
+              echo "🎯 Resources deployed via manual trigger"
+            else
+              echo "📋 Successfully planned ${{ matrix.environment }} environment"
+              echo "💡 Use '/digger apply' comment to deploy or merge PR for auto-deploy (dev only)"
+            fi
+          else
+            echo "❌ Deployment failed for ${{ matrix.environment }} environment"
+            echo "🔧 Check logs above for error details"
+          fi
