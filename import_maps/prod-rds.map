@@ -1,0 +1,3 @@
+module.rds.aws_rds_cluster.this["insight-production-db"] insight-production-db
+module.rds.aws_db_instance.this["bwppudb"] bwppudb
+module.rds.aws_db_subnet_group.this["default"] default

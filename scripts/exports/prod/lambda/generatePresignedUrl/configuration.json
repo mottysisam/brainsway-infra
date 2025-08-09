@@ -1,0 +1,35 @@
+{
+    "FunctionName": "generatePresignedUrl",
+    "FunctionArn": "arn:aws:lambda:us-east-2:154948530138:function:generatePresignedUrl",
+    "Runtime": "python3.6",
+    "Role": "arn:aws:iam::154948530138:role/lambda_s3_execution",
+    "Handler": "lambda_function.lambda_handler",
+    "CodeSize": 1188,
+    "Description": "The lambda will generate a presigned url to S3",
+    "Timeout": 10,
+    "MemorySize": 128,
+    "LastModified": "2018-07-11T09:23:06.110+0000",
+    "CodeSha256": "wy/IoBA8mFXO6QNIPnX5ctDbfkI8/ojtX+LSfQoavbw=",
+    "Version": "$LATEST",
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "9ebf34f3-8e96-41b7-882b-6a89a0d431f2",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/generatePresignedUrl"
+    }
+}

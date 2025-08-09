@@ -1,0 +1,14 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+
+# AWS credentials and secrets
+secrets.txt
+scripts/bootstrap-with-credentials.sh
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,58 @@
+name: prod-import
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: "AWS regions (comma-separated)"
+        required: true
+        default: "us-east-2"
+      resources:
+        description: "Terraformer resources list (e.g., vpc,subnet,route_table)"
+        required: true
+        default: "vpc,subnet"
+      filters:
+        description: "Optional --filter string (e.g., aws_vpc=vpc-xxxx)"
+        required: false
+jobs:
+  discover:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS creds (prod, read-only+state)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_IAC_PROD }}
+          aws-region: us-east-2
+      - name: Install terraformer
+        run: |
+          curl -L https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-all-linux-amd64 -o /usr/local/bin/terraformer
+          chmod +x /usr/local/bin/terraformer
+      - name: Run terraformer (discovery only)
+        env:
+          REGIONS: ${{ github.event.inputs.regions }}
+          RES: ${{ github.event.inputs.resources }}
+          FIL: ${{ github.event.inputs.filters }}
+        run: |
+          mkdir -p tmp/terraformer
+          set -euo pipefail
+          ARGS=(import aws --regions=${REGIONS} --resources=${RES} --path-output=tmp/terraformer --compact)
+          if [ -n "${FIL}" ]; then ARGS+=(--filter "${FIL}"); fi
+          terraformer "${ARGS[@]}"
+      - name: Build import script artifact
+        run: |
+          set -euo pipefail
+          find tmp/terraformer -name import.sh -print0 | xargs -0 cat > import_raw.sh || true
+          if [ -s import_raw.sh ]; then sed 's/terraform/terragrunt/g' import_raw.sh > import.sh; fi
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-import-scripts
+          path: |
+            import.sh
+            tmp/terraformer/**
+          retention-days: 7

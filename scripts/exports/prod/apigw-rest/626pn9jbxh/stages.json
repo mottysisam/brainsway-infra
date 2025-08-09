@@ -1,0 +1,50 @@
+{
+    "item": [
+        {
+            "deploymentId": "mp1z9j",
+            "stageName": "dev",
+            "cacheClusterEnabled": false,
+            "cacheClusterSize": "0.5",
+            "cacheClusterStatus": "NOT_AVAILABLE",
+            "methodSettings": {
+                "*/*": {
+                    "metricsEnabled": false,
+                    "dataTraceEnabled": false,
+                    "throttlingBurstLimit": 5000,
+                    "throttlingRateLimit": 10000.0,
+                    "cachingEnabled": false,
+                    "cacheTtlInSeconds": 300,
+                    "cacheDataEncrypted": false,
+                    "requireAuthorizationForCacheControl": true,
+                    "unauthorizedCacheControlHeaderStrategy": "SUCCEED_WITH_RESPONSE_HEADER"
+                },
+                "~1load/POST": {
+                    "metricsEnabled": false,
+                    "loggingLevel": "OFF",
+                    "dataTraceEnabled": false,
+                    "throttlingBurstLimit": 5000,
+                    "throttlingRateLimit": 10000.0,
+                    "cachingEnabled": false,
+                    "cacheTtlInSeconds": 300,
+                    "cacheDataEncrypted": false,
+                    "requireAuthorizationForCacheControl": true,
+                    "unauthorizedCacheControlHeaderStrategy": "SUCCEED_WITH_RESPONSE_HEADER"
+                }
+            },
+            "tracingEnabled": false,
+            "createdDate": "2019-01-14T15:45:56+02:00",
+            "lastUpdatedDate": "2019-02-27T12:20:38+02:00"
+        },
+        {
+            "deploymentId": "qtkn33",
+            "stageName": "prod",
+            "description": "production",
+            "cacheClusterEnabled": false,
+            "cacheClusterStatus": "NOT_AVAILABLE",
+            "methodSettings": {},
+            "tracingEnabled": false,
+            "createdDate": "2019-08-05T12:52:11+03:00",
+            "lastUpdatedDate": "2019-08-05T12:52:11+03:00"
+        }
+    ]
+}

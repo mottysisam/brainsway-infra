@@ -1,0 +1,56 @@
+{
+    "FunctionName": "insert-ppu-data-dev-insert_ppu",
+    "FunctionArn": "arn:aws:lambda:us-east-2:154948530138:function:insert-ppu-data-dev-insert_ppu",
+    "Runtime": "python3.9",
+    "Role": "arn:aws:iam::154948530138:role/lambda-vpc-role",
+    "Handler": "insertPPUData.handler",
+    "CodeSize": 14033,
+    "Description": "",
+    "Timeout": 6,
+    "MemorySize": 1024,
+    "LastModified": "2024-10-30T11:08:04.000+0000",
+    "CodeSha256": "APKZAeB2HDQLlRYBalLlDtFDPexIMxsG61Yi93z3I3w=",
+    "Version": "$LATEST",
+    "VpcConfig": {
+        "SubnetIds": [
+            "subnet-47cb8d2e",
+            "subnet-fa22af81",
+            "subnet-40895a0d"
+        ],
+        "SecurityGroupIds": [
+            "sg-0c0a0065"
+        ],
+        "VpcId": "vpc-d2a9d9bb",
+        "Ipv6AllowedForDualStack": false
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "e33a4d47-6ed4-4993-a72c-58fb454fbd1c",
+    "Layers": [
+        {
+            "Arn": "arn:aws:lambda:us-east-2:770693421928:layer:Klayers-p39-psycopg2-binary:1",
+            "CodeSize": 3039644
+        }
+    ],
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:us-east-2::runtime:af29e10439856e364100c5dec1ce9c55d44feb2772258f7a7e480a95474aa18f"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/insert-ppu-data-dev-insert_ppu"
+    }
+}

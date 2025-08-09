@@ -1,0 +1,42 @@
+{
+    "Table": {
+        "AttributeDefinitions": [
+            {
+                "AttributeName": "date",
+                "AttributeType": "S"
+            },
+            {
+                "AttributeName": "device_id",
+                "AttributeType": "S"
+            }
+        ],
+        "TableName": "event_log",
+        "KeySchema": [
+            {
+                "AttributeName": "date",
+                "KeyType": "HASH"
+            },
+            {
+                "AttributeName": "device_id",
+                "KeyType": "RANGE"
+            }
+        ],
+        "TableStatus": "ACTIVE",
+        "CreationDateTime": "2020-03-30T12:55:14.757000+03:00",
+        "ProvisionedThroughput": {
+            "NumberOfDecreasesToday": 0,
+            "ReadCapacityUnits": 5,
+            "WriteCapacityUnits": 5
+        },
+        "TableSizeBytes": 312511,
+        "ItemCount": 1869,
+        "TableArn": "arn:aws:dynamodb:us-east-2:154948530138:table/event_log",
+        "TableId": "dc7aa895-5f43-4800-8b93-5fd8d5a095f7",
+        "DeletionProtectionEnabled": false,
+        "WarmThroughput": {
+            "ReadUnitsPerSecond": 5,
+            "WriteUnitsPerSecond": 5,
+            "Status": "ACTIVE"
+        }
+    }
+}

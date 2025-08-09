@@ -1,0 +1,41 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-030eae6ae87c0c6cc",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "VpcId": "vpc-d2a9d9bb",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-2:154948530138:security-group/sg-030eae6ae87c0c6cc",
+            "OwnerId": "154948530138",
+            "GroupName": "launch-wizard-2",
+            "Description": "launch-wizard-2 created 2024-01-02T09:25:21.397Z",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 22,
+                    "ToPort": 22,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "ssh from bw only",
+                            "CidrIp": "31.154.74.238/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        }
+    ]
+}
