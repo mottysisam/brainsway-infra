@@ -12,7 +12,6 @@ jobs:
     if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
     timeout-minutes: 60
     permissions:
-      id-token: write
       contents: read
       pull-requests: write
       issues: write
@@ -59,13 +58,22 @@ jobs:
           echo 'Prod is READ-ONLY in this repo. /digger apply is blocked.' >&2
           exit 1
 
-      - name: Select AWS role for env
-        id: role
+      - name: Select AWS credentials for env
+        id: creds
         run: |
           case "${{ steps.detect.outputs.env }}" in
-            dev) echo "arn=${{ secrets.AWS_ROLE_IAC_DEV }}" >> $GITHUB_OUTPUT ;;
-            staging) echo "arn=${{ secrets.AWS_ROLE_IAC_STAGING }}" >> $GITHUB_OUTPUT ;;
-            prod) echo "arn=${{ secrets.AWS_ROLE_IAC_PROD }}" >> $GITHUB_OUTPUT ;;
+            dev) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_DEV }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+            staging) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            prod) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_PROD }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}" >> $GITHUB_OUTPUT
+              ;;
           esac
 
       - name: Env for non-interactive runs
@@ -73,10 +81,11 @@ jobs:
           echo "TF_IN_AUTOMATION=1" >> $GITHUB_ENV
           echo "TF_INPUT=0" >> $GITHUB_ENV
 
-      - name: Configure AWS creds via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ steps.role.outputs.arn }}
+          aws-access-key-id: ${{ steps.creds.outputs.access_key_id }}
+          aws-secret-access-key: ${{ steps.creds.outputs.secret_access_key }}
           aws-region: us-east-2
 
       - name: Setup Terraform
