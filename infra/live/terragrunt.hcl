@@ -3,6 +3,17 @@ terraform {
     commands  = ["plan","apply","destroy","refresh","import"]
     arguments = ["-no-color"]
   }
+  
+  before_hook "verify_account" {
+    commands = ["plan","apply","destroy","refresh"]
+    execute  = ["bash","-lc",<<EOC
+set -euo pipefail
+EXPECTED="${local.env_cfg.aws_account}"
+ACTUAL=$(aws sts get-caller-identity --query Account --output text)
+if [ "$ACTUAL" != "$EXPECTED" ]; then echo "FATAL: Wrong AWS account. Expected $EXPECTED, got $ACTUAL" >&2; exit 1; fi
+EOC
+    ]
+  }
 }
 locals {
   env_cfg = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
@@ -27,14 +38,4 @@ provider "aws" {
   default_tags { tags = { Environment = "${local.env_cfg.env}", ManagedBy = "Terragrunt+Digger", Owner = "Brainsway" } }
 }
 EOF
-}
-before_hook "verify_account" {
-  commands = ["plan","apply","destroy","refresh"]
-  execute  = ["bash","-lc",<<EOC
-set -euo pipefail
-EXPECTED="${local.env_cfg.aws_account}"
-ACTUAL=$(aws sts get-caller-identity --query Account --output text)
-if [ "$ACTUAL" != "$EXPECTED" ]; then echo "FATAL: Wrong AWS account. Expected $EXPECTED, got $ACTUAL" >&2; exit 1; fi
-EOC
-  ]
 }
