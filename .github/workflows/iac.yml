@@ -115,5 +115,7 @@ jobs:
 
       - name: Digger
         uses: diggerhq/digger@v0.3.20
+        with:
+          no-backend: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
