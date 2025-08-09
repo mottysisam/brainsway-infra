@@ -2,6 +2,7 @@ include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/network" }
 inputs = {
   # Basic VPC configuration for dev environment testing
+  # Updated to test digger apply dev command
   vpc = {
     cidr_block = "10.0.0.0/16"
     tags = {
