@@ -15,6 +15,7 @@ on:
         required: false
 jobs:
   discover:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -47,9 +48,11 @@ jobs:
           find tmp/terraformer -name import.sh -print0 | xargs -0 cat > import_raw.sh || true
           if [ -s import_raw.sh ]; then sed 's/terraform/terragrunt/g' import_raw.sh > import.sh; fi
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: prod-import-scripts
           path: |
             import.sh
             tmp/terraformer/**
+          retention-days: 7

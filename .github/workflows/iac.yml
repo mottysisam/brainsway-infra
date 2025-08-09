@@ -9,6 +9,8 @@ on:
     types: [created]
 jobs:
   digger:
+    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
+    timeout-minutes: 60
     permissions:
       id-token: write
       contents: read
