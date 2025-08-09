@@ -8,22 +8,20 @@ on:
   issue_comment:
     types: [created]
 jobs:
-  digger:
+  detect-environments:
     if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
-      statuses: write
-    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.detect.outputs.environments }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Detect environment (dev/staging/prod)
+      - name: Detect affected environments
         id: detect
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,25 +56,63 @@ jobs:
           fi
           
           # Filter for infra/live changes
-          INFRA_CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || echo "infra/live/dev/")
+          INFRA_CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || echo "")
           
-          # Detect environment
-          ENV="dev"
-          echo "$INFRA_CHANGED" | grep -q '/prod/' && ENV="prod"
-          echo "$INFRA_CHANGED" | grep -q '/staging/' && ENV="staging"
-          echo "env=$ENV" >> $GITHUB_OUTPUT
+          # Detect ALL affected environments
+          ENVIRONMENTS=""
+          if echo "$INFRA_CHANGED" | grep -q '/dev/'; then
+            ENVIRONMENTS="dev"
+          fi
+          if echo "$INFRA_CHANGED" | grep -q '/staging/'; then
+            ENVIRONMENTS="${ENVIRONMENTS:+$ENVIRONMENTS,}staging"
+          fi
+          if echo "$INFRA_CHANGED" | grep -q '/prod/'; then
+            ENVIRONMENTS="${ENVIRONMENTS:+$ENVIRONMENTS,}prod"
+          fi
+          
+          # Default to dev if no environment detected (e.g., only root files changed)
+          if [ -z "$ENVIRONMENTS" ] && [ -n "$INFRA_CHANGED" ]; then
+            ENVIRONMENTS="dev"
+          fi
+          
+          # Convert to JSON array for matrix
+          if [ -n "$ENVIRONMENTS" ]; then
+            ENV_ARRAY=$(echo "$ENVIRONMENTS" | tr ',' '\n' | jq -R . | jq -s .)
+          else
+            ENV_ARRAY='[]'
+          fi
+          
+          echo "environments=$ENV_ARRAY" >> $GITHUB_OUTPUT
           echo "Changed infra files: $INFRA_CHANGED"
+          echo "Affected environments: $ENVIRONMENTS"
+
+  digger:
+    needs: detect-environments
+    if: ${{ needs.detect-environments.outputs.environments != '[]' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.detect-environments.outputs.environments) }}
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Guard prod applies (prod is READ-ONLY)
-        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && steps.detect.outputs.env == 'prod' }}
+        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && matrix.environment == 'prod' }}
         run: |
           echo 'Prod is READ-ONLY in this repo. /digger apply is blocked.' >&2
           exit 1
 
-      - name: Select AWS credentials for env
+      - name: Select AWS credentials for ${{ matrix.environment }}
         id: creds
         run: |
-          case "${{ steps.detect.outputs.env }}" in
+          case "${{ matrix.environment }}" in
             dev) 
               echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_DEV }}" >> $GITHUB_OUTPUT
               echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}" >> $GITHUB_OUTPUT
@@ -114,10 +150,14 @@ jobs:
           curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
 
-      - name: Digger
+      - name: Run Digger for ${{ matrix.environment }}
         uses: diggerhq/digger@v0.3.20
         with:
           no-backend: true
+          setup-aws: false
+          setup-terraform: false
+          setup-terragrunt: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_CONTEXT: ${{ toJSON(github) }}
+          DIGGER_PROJECT: ${{ matrix.environment }}
