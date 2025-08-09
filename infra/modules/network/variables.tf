@@ -8,12 +8,12 @@ variable "vpc" {
 }
 variable "subnets" {
   # key = subnet_id
-  type    = map(object({
-    vpc_id                   = string
-    cidr_block               = string
-    availability_zone        = optional(string)
-    map_public_ip_on_launch  = optional(bool)
-    tags                     = optional(map(string), {})
+  type = map(object({
+    vpc_id                  = string
+    cidr_block              = string
+    availability_zone       = optional(string)
+    map_public_ip_on_launch = optional(bool)
+    tags                    = optional(map(string), {})
   }))
   default = {}
 }
@@ -42,15 +42,15 @@ variable "nat_gateways" {
 variable "vpc_endpoints" {
   # key = vpc_endpoint_id
   type = map(object({
-    vpc_id               = string
-    service_name         = string
-    vpc_endpoint_type    = string
-    subnet_ids           = optional(list(string), null)
-    security_group_ids   = optional(list(string), null)
-    route_table_ids      = optional(list(string), null)
-    private_dns_enabled  = optional(bool, null)
-    policy               = optional(string, null)
-    tags                 = optional(map(string), {})
+    vpc_id              = string
+    service_name        = string
+    vpc_endpoint_type   = string
+    subnet_ids          = optional(list(string), null)
+    security_group_ids  = optional(list(string), null)
+    route_table_ids     = optional(list(string), null)
+    private_dns_enabled = optional(bool, null)
+    policy              = optional(string, null)
+    tags                = optional(map(string), {})
   }))
   default = {}
 }

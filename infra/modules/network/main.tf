@@ -6,16 +6,16 @@ resource "aws_vpc" "this" {
   cidr_block           = var.vpc.cidr_block
   enable_dns_support   = try(var.vpc.enable_dns_support, true)
   enable_dns_hostnames = try(var.vpc.enable_dns_hostnames, true)
-  tags = merge({ Name = "core-vpc" }, try(var.vpc.tags, {}))
+  tags                 = merge({ Name = "core-vpc" }, try(var.vpc.tags, {}))
 }
 
 resource "aws_subnet" "this" {
-  for_each                  = var.subnets
-  vpc_id                    = each.value.vpc_id
-  cidr_block                = each.value.cidr_block
-  availability_zone         = try(each.value.availability_zone, null)
-  map_public_ip_on_launch   = try(each.value.map_public_ip_on_launch, null)
-  tags = try(each.value.tags, {})
+  for_each                = var.subnets
+  vpc_id                  = each.value.vpc_id
+  cidr_block              = each.value.cidr_block
+  availability_zone       = try(each.value.availability_zone, null)
+  map_public_ip_on_launch = try(each.value.map_public_ip_on_launch, null)
+  tags                    = try(each.value.tags, {})
 }
 
 resource "aws_internet_gateway" "this" {

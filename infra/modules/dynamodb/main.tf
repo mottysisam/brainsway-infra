@@ -1,4 +1,11 @@
-terraform { required_providers { aws = { source = "hashicorp/aws", version = ">= 5.0" } } }
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
 
 resource "aws_dynamodb_table" "this" {
   for_each     = var.tables
@@ -19,8 +26,8 @@ resource "aws_dynamodb_table" "this" {
 }
 
 resource "aws_dynamodb_table_ttl" "this" {
-  for_each = { for k,v in var.tables : k => v if try(v.ttl_attribute, null) != null }
-  table_name = aws_dynamodb_table.this[each.key].name
+  for_each       = { for k, v in var.tables : k => v if try(v.ttl_attribute, null) != null }
+  table_name     = aws_dynamodb_table.this[each.key].name
   attribute_name = each.value.ttl_attribute
-  enabled = try(each.value.ttl_enabled, true)
+  enabled        = try(each.value.ttl_enabled, true)
 }
