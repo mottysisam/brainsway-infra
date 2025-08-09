@@ -77,8 +77,9 @@ jobs:
           
           # Convert to JSON array for matrix
           if [ -n "$ENVIRONMENTS" ]; then
-            # Create JSON array using printf and jq for reliability
-            ENV_ARRAY=$(printf '%s\n' $(echo "$ENVIRONMENTS" | tr ',' ' ') | jq -R . | jq -s .)
+            # Create JSON array manually to avoid jq formatting issues
+            ENV_LIST=$(echo "$ENVIRONMENTS" | tr ',' '\n' | sed 's/.*/"&"/' | tr '\n' ',' | sed 's/,$//')
+            ENV_ARRAY="[$ENV_LIST]"
           else
             ENV_ARRAY='[]'
           fi
