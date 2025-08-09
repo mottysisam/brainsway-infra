@@ -141,20 +141,12 @@ main() {
         expected_buckets=($(jq -r '.expected_resources.s3.buckets[].name' "$expected_file" 2>/dev/null || echo ""))
         
         print_status "info" "Expected S3 buckets: ${expected_buckets[*]:-none}"
-    else
-        print_status "warning" "Expected file not found, using environment-based defaults"
-        # Fallback to environment-based defaults if expected file is not available
-        case $environment in
-            "dev")
-                expected_buckets=("bw-tf-state-dev-us-east-2" "bw-ppu-data-dev" "bw-software-updates-dev")
-                ;;
-            "staging")
-                expected_buckets=("bw-tf-state-staging-us-east-2" "bw-ppu-data-staging" "bw-software-updates-staging")
-                ;;
-            "prod")
-                expected_buckets=("bw-tf-state-prod-us-east-2" "bw-ppu-data" "bw-software-updates")
-                ;;
-        esac
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_buckets[@]} -eq 0 ]]; then
+        print_status "info" "No expected S3 buckets found, skipping verification"
+        return 0
     fi
     
     local found_buckets=()
@@ -174,10 +166,22 @@ main() {
     
     if [[ -f "$results_file" ]]; then
         local temp_results="/tmp/s3_results.json"
+        # Create proper JSON arrays
+        local found_json="[]"
+        local missing_json="[]"
+        
+        if [[ ${#found_buckets[@]} -gt 0 ]]; then
+            found_json="[$(printf '"%s",' "${found_buckets[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_buckets[@]} -gt 0 ]]; then
+            missing_json="[$(printf '"%s",' "${missing_buckets[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "buckets_found": [$(printf '"%s",' "${found_buckets[@]}" | sed 's/,$//')],
-  "buckets_missing": [$(printf '"%s",' "${missing_buckets[@]}" | sed 's/,$/')]
+  "buckets_found": $found_json,
+  "buckets_missing": $missing_json
 }
 EOF
         

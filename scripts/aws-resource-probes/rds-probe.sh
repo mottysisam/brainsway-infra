@@ -332,10 +332,10 @@ main() {
         local temp_results="/tmp/rds_results.json"
         cat > "$temp_results" << EOF
 {
-  "instances_found": [$(printf '"%s",' "${found_instances[@]}" | sed 's/,$//')]",
-  "instances_missing": [$(printf '"%s",' "${missing_instances[@]}" | sed 's/,$//')]",
-  "clusters_found": [$(printf '"%s",' "${found_clusters[@]}" | sed 's/,$//')]",
-  "clusters_missing": [$(printf '"%s",' "${missing_clusters[@]}" | sed 's/,$//')]"
+  "instances_found": [$(printf '"%s",' "${found_instances[@]}" | sed 's/,$//')],
+  "instances_missing": [$(printf '"%s",' "${missing_instances[@]}" | sed 's/,$//')],
+  "clusters_found": [$(printf '"%s",' "${found_clusters[@]}" | sed 's/,$//')],
+  "clusters_missing": [$(printf '"%s",' "${missing_clusters[@]}" | sed 's/,$/')]
 }
 EOF
         

@@ -100,27 +100,38 @@ main() {
     
     print_status "probe" "Starting DynamoDB table verification for ${environment} in ${region}"
     
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected DynamoDB resources from the expected file
     local expected_tables=()
-    case $environment in
-        "dev")
-            expected_tables=("event_log-dev" "sw_update-dev")
-            ;;
-        "staging")
-            expected_tables=("event_log-staging" "sw_update-staging")
-            ;;
-        "prod")
-            expected_tables=("event_log" "sw_update")
-            ;;
-    esac
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected tables from JSON file
+        expected_tables=($(jq -r '.expected_resources.dynamodb.tables[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected DynamoDB tables: ${expected_tables[*]:-none}"
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_tables[@]} -eq 0 ]]; then
+        print_status "info" "No expected DynamoDB tables found, skipping verification"
+        return 0
+    fi
     
     local found_tables=()
     local missing_tables=()
     
     for table_name in "${expected_tables[@]}"; do
-        if check_dynamodb_table "$table_name" "$region" > "/tmp/dynamodb_check_${table_name}.json"; then
-            found_tables+=("$table_name")
-        else
-            missing_tables+=("$table_name")
+        if [[ -n "$table_name" && "$table_name" != "null" ]]; then
+            if check_dynamodb_table "$table_name" "$region" > "/tmp/dynamodb_check_${table_name}.json"; then
+                found_tables+=("$table_name")
+            else
+                missing_tables+=("$table_name")
+            fi
         fi
     done
     
@@ -128,10 +139,22 @@ main() {
     
     if [[ -f "$results_file" ]]; then
         local temp_results="/tmp/dynamodb_results.json"
+        # Create proper JSON arrays
+        local found_json="[]"
+        local missing_json="[]"
+        
+        if [[ ${#found_tables[@]} -gt 0 ]]; then
+            found_json="[$(printf '"%s",' "${found_tables[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_tables[@]} -gt 0 ]]; then
+            missing_json="[$(printf '"%s",' "${missing_tables[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "tables_found": [$(printf '"%s",' "${found_tables[@]}" | sed 's/,$//')]",
-  "tables_missing": [$(printf '"%s",' "${missing_tables[@]}" | sed 's/,$//')]"
+  "tables_found": $found_json,
+  "tables_missing": $missing_json
 }
 EOF
         

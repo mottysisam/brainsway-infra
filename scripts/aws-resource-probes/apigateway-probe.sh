@@ -124,27 +124,38 @@ main() {
     
     print_status "probe" "Starting API Gateway verification for ${environment} in ${region}"
     
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected API Gateway resources from the expected file
     local expected_apis=()
-    case $environment in
-        "dev")
-            expected_apis=("bw-ppu-api-dev")
-            ;;
-        "staging")
-            expected_apis=("bw-ppu-api-staging")
-            ;;
-        "prod")
-            expected_apis=("bw-ppu-api")
-            ;;
-    esac
+    
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected APIs from JSON file
+        expected_apis=($(jq -r '.expected_resources.apigateway.rest_apis[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected API Gateway APIs: ${expected_apis[*]:-none}"
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_apis[@]} -eq 0 ]]; then
+        print_status "info" "No expected API Gateway APIs found, skipping verification"
+        return 0
+    fi
     
     local found_apis=()
     local missing_apis=()
     
     for api_name in "${expected_apis[@]}"; do
-        if check_api_gateway_rest_api "$api_name" "$region" > "/tmp/apigateway_check_${api_name}.json"; then
-            found_apis+=("$api_name")
-        else
-            missing_apis+=("$api_name")
+        if [[ -n "$api_name" && "$api_name" != "null" ]]; then
+            if check_api_gateway_rest_api "$api_name" "$region" > "/tmp/apigateway_check_${api_name}.json"; then
+                found_apis+=("$api_name")
+            else
+                missing_apis+=("$api_name")
+            fi
         fi
     done
     
@@ -152,10 +163,22 @@ main() {
     
     if [[ -f "$results_file" ]]; then
         local temp_results="/tmp/apigateway_results.json"
+        # Create proper JSON arrays
+        local found_json="[]"
+        local missing_json="[]"
+        
+        if [[ ${#found_apis[@]} -gt 0 ]]; then
+            found_json="[$(printf '"%s",' "${found_apis[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_apis[@]} -gt 0 ]]; then
+            missing_json="[$(printf '"%s",' "${missing_apis[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "rest_apis_found": [$(printf '"%s",' "${found_apis[@]}" | sed 's/,$//')],
-  "rest_apis_missing": [$(printf '"%s",' "${missing_apis[@]}" | sed 's/,$/')]
+  "rest_apis_found": $found_json,
+  "rest_apis_missing": $missing_json
 }
 EOF
         

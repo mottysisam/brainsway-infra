@@ -101,14 +101,16 @@ DESCRIPTION:
 EOF
 }
 
+# Global variables
+ENVIRONMENT=""
+REGION="us-east-2"
+CONFIG_ROOT="infra/live"
+OUTPUT_FILE=""
+WAIT_TIME=300
+MODE="deployment"
+
 # Function to parse command line arguments
 parse_arguments() {
-    ENVIRONMENT=""
-    REGION="us-east-2"
-    CONFIG_ROOT="infra/live"
-    OUTPUT_FILE=""
-    WAIT_TIME=300
-    MODE="deployment"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -248,116 +250,73 @@ EOF
                 "rds")
                     # Extract RDS instances and clusters from terragrunt.hcl
                     if grep -q '"instances"' "$hcl_file"; then
-                        # Parse RDS instances using improved approach
-                        python3 - << EOF
-import re
-import json
-import sys
-
-def extract_rds_resources(file_path):
-    with open(file_path, 'r') as f:
-        content = f.read()
-    
-    # Extract instances configuration block
-    instances_match = re.search(r'"instances"\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', content, re.DOTALL)
-    if instances_match:
-        instances_content = instances_match.group(1)
-        # Extract instance names (keys in the instances map)
-        instance_names = re.findall(r'"([^"]+)"\s*=\s*\{', instances_content)
-        
-        for name in instance_names:
-            # Extract instance details with more robust parsing
-            # Look for the instance block
-            pattern = f'"{re.escape(name)}"\s*=\s*\{{([^{{}}]*(?:\{{[^{{}}]*\}}[^{{}}]*)*)\}}'
-            instance_match = re.search(pattern, instances_content, re.DOTALL)
-            if instance_match:
-                instance_config = instance_match.group(1)
-                
-                # Extract engine, instance_class, etc.
-                engine_match = re.search(r'"engine"\s*=\s*"([^"]+)"', instance_config)
-                instance_class_match = re.search(r'"instance_class"\s*=\s*"([^"]+)"', instance_config)
-                
-                instance_data = {
-                    "name": name,
-                    "engine": engine_match.group(1) if engine_match else "unknown",
-                    "instance_class": instance_class_match.group(1) if instance_class_match else "unknown"
-                }
-                
-                print(json.dumps(instance_data))
-
-extract_rds_resources('$hcl_file')
-EOF
+                        # Extract instance names using a simpler approach
+                        local rds_instances=()
+                        while IFS= read -r line; do
+                            if [[ "$line" =~ \"([^\"]+)\"[[:space:]]*=[[:space:]]*\{ ]]; then
+                                instance_name="${BASH_REMATCH[1]}"
+                                # Exclude common configuration keys that are not instance names
+                                if [[ -n "$instance_name" && "$instance_name" != "instances" && "$instance_name" != "tags" && "$instance_name" != "vpc_security_group_ids" && "$instance_name" != "db_subnet_group_name" ]]; then
+                                    rds_instances+=("$instance_name")
+                                    # Add instance to expected file
+                                    jq --arg name "$instance_name" \
+                                        '.expected_resources.rds.instances += [{"name": $name, "engine": "postgres", "instance_class": "db.t3.small"}]' \
+                                        "$expected_file" > "${expected_file}.tmp" && mv "${expected_file}.tmp" "$expected_file"
+                                fi
+                            fi
+                        done < <(sed -n '/"instances".*{/,/^[[:space:]]*}/p' "$hcl_file")
+                        
+                        if [[ ${#rds_instances[@]} -gt 0 ]]; then
+                            print_status "info" "Found RDS instances: ${rds_instances[*]}"
+                            ((total_expected += ${#rds_instances[@]}))
+                        fi
                     fi
                     
-                    # Also check for RDS clusters
+                    # Check for RDS clusters
                     if grep -q '"clusters"' "$hcl_file"; then
-                        python3 - << EOF
-import re
-import json
-
-def extract_rds_clusters(file_path):
-    with open(file_path, 'r') as f:
-        content = f.read()
-    
-    clusters_match = re.search(r'"clusters"\s*=\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', content, re.DOTALL)
-    if clusters_match:
-        clusters_content = clusters_match.group(1)
-        cluster_names = re.findall(r'"([^"]+)"\s*=\s*\{', clusters_content)
-        
-        for name in cluster_names:
-            pattern = f'"{re.escape(name)}"\s*=\s*\{{([^{{}}]*(?:\{{[^{{}}]*\}}[^{{}}]*)*)\}}'
-            cluster_match = re.search(pattern, clusters_content, re.DOTALL)
-            if cluster_match:
-                cluster_config = cluster_match.group(1)
-                
-                engine_match = re.search(r'"engine"\s*=\s*"([^"]+)"', cluster_config)
-                
-                cluster_data = {
-                    "name": name,
-                    "engine": engine_match.group(1) if engine_match else "unknown",
-                    "type": "cluster"
-                }
-                
-                print(json.dumps(cluster_data))
-
-extract_rds_clusters('$hcl_file')
-EOF
+                        local rds_clusters=()
+                        while IFS= read -r line; do
+                            if [[ "$line" =~ \"([^\"]+)\"[[:space:]]*=[[:space:]]*\{ ]]; then
+                                cluster_name="${BASH_REMATCH[1]}"
+                                # Exclude common configuration keys
+                                if [[ -n "$cluster_name" && "$cluster_name" != "clusters" && "$cluster_name" != "tags" && "$cluster_name" != "vpc_security_group_ids" && "$cluster_name" != "db_subnet_group_name" ]]; then
+                                    rds_clusters+=("$cluster_name")
+                                    # Add cluster to expected file
+                                    jq --arg name "$cluster_name" \
+                                        '.expected_resources.rds.clusters += [{"name": $name, "engine": "aurora-postgresql", "type": "cluster"}]' \
+                                        "$expected_file" > "${expected_file}.tmp" && mv "${expected_file}.tmp" "$expected_file"
+                                fi
+                            fi
+                        done < <(sed -n '/"clusters".*{/,/^[[:space:]]*}/p' "$hcl_file")
+                        
+                        if [[ ${#rds_clusters[@]} -gt 0 ]]; then
+                            print_status "info" "Found RDS clusters: ${rds_clusters[*]}"
+                            ((total_expected += ${#rds_clusters[@]}))
+                        fi
                     fi
                     ;;
                 "ec2")
                     # Extract EC2 instances
                     if grep -q '"instances"' "$hcl_file"; then
-                        python3 - << EOF
-import re
-import json
-
-def extract_ec2_resources(file_path):
-    with open(file_path, 'r') as f:
-        content = f.read()
-    
-    instances_match = re.search(r'"instances"\s*=\s*\{([^}]+)\}', content, re.DOTALL)
-    if instances_match:
-        instances_content = instances_match.group(1)
-        instance_names = re.findall(r'"([^"]+)"\s*=\s*\{', instances_content)
-        
-        for name in instance_names:
-            instance_match = re.search(f'"{re.escape(name)}"\s*=\s*\{{([^}}]+)\}}', instances_content, re.DOTALL)
-            if instance_match:
-                instance_config = instance_match.group(1)
-                
-                instance_type_match = re.search(r'"instance_type"\s*=\s*"([^"]+)"', instance_config)
-                ami_match = re.search(r'"ami"\s*=\s*"([^"]+)"', instance_config)
-                
-                instance_data = {
-                    "name": name,
-                    "instance_type": instance_type_match.group(1) if instance_type_match else "unknown",
-                    "ami": ami_match.group(1) if ami_match else "unknown"
-                }
-                
-                print(json.dumps(instance_data))
-
-extract_ec2_resources('$hcl_file')
-EOF
+                        local ec2_instances=()
+                        while IFS= read -r line; do
+                            if [[ "$line" =~ \"([^\"]+)\"[[:space:]]*=[[:space:]]*\{ ]]; then
+                                instance_name="${BASH_REMATCH[1]}"
+                                # Exclude common configuration keys
+                                if [[ -n "$instance_name" && "$instance_name" != "instances" && "$instance_name" != "tags" && "$instance_name" != "vpc_security_group_ids" && "$instance_name" != "subnet_id" ]]; then
+                                    ec2_instances+=("$instance_name")
+                                    # Add instance to expected file
+                                    jq --arg name "$instance_name" \
+                                        '.expected_resources.ec2.instances += [{"name": $name, "instance_type": "t3.micro", "ami": "ami-unknown"}]' \
+                                        "$expected_file" > "${expected_file}.tmp" && mv "${expected_file}.tmp" "$expected_file"
+                                fi
+                            fi
+                        done < <(sed -n '/"instances".*{/,/^[[:space:]]*}/p' "$hcl_file")
+                        
+                        if [[ ${#ec2_instances[@]} -gt 0 ]]; then
+                            print_status "info" "Found EC2 instances: ${ec2_instances[*]}"
+                            ((total_expected += ${#ec2_instances[@]}))
+                        fi
                     fi
                     ;;
                 "lambda")
@@ -400,8 +359,11 @@ EOF
             esac
         fi
     done
+    
+    # Update the summary section
+    jq --arg total "$total_expected" '.summary.total_expected = ($total | tonumber)' "$expected_file" > "${expected_file}.tmp" && mv "${expected_file}.tmp" "$expected_file"
 
-    print_status "success" "Expected resources extracted to: ${expected_file}"
+    print_status "success" "Expected resources extracted to: ${expected_file} (${total_expected} total)"
     echo "$expected_file"
 }
 
@@ -410,8 +372,8 @@ probe_aws_resources() {
     local expected_file=$1
     local results_file="${OUTPUT_FILE%.*}-results.json"
     
-    print_status "info" "Starting AWS resource probing with eventual consistency handling"
-    print_status "clock" "Initial wait for eventual consistency: ${EVENTUAL_CONSISTENCY_WAIT}s"
+    print_status "info" "Starting AWS resource probing with eventual consistency handling" >&2
+    print_status "clock" "Initial wait for eventual consistency: ${EVENTUAL_CONSISTENCY_WAIT}s" >&2
     sleep $EVENTUAL_CONSISTENCY_WAIT
 
     # Initialize results JSON
@@ -482,14 +444,14 @@ EOF
     for script in "${probe_scripts[@]}"; do
         local script_path="$SCRIPT_DIR/aws-resource-probes/$script"
         if [[ -f "$script_path" ]]; then
-            print_status "probe" "Running ${script}..."
+            print_status "probe" "Running ${script}..." >&2
             if bash "$script_path" --environment "$ENVIRONMENT" --region "$REGION" --expected-file "$expected_file" --results-file "$results_file"; then
-                print_status "success" "${script} completed successfully"
+                print_status "success" "${script} completed successfully" >&2
             else
-                print_status "failure" "${script} failed"
+                print_status "failure" "${script} failed" >&2
             fi
         else
-            print_status "warning" "Probe script not found: ${script}"
+            print_status "warning" "Probe script not found: ${script}" >&2
         fi
     done
 
@@ -547,7 +509,7 @@ EOF
 generate_final_report() {
     local results_file=$1
     
-    print_status "info" "Generating final verification report"
+    print_status "info" "Generating final verification report" >&2
     
     # Load results and print summary
     python3 - << EOF

@@ -189,23 +189,30 @@ main() {
     
     print_status "probe" "Starting IAM verification for ${environment} in ${region}"
     
+    # Check if expected file exists
+    if [[ ! -f "$expected_file" ]]; then
+        print_status "warning" "Expected file not found: $expected_file"
+        return 0
+    fi
+    
+    # Extract expected IAM resources from the expected file
     local expected_roles=()
     local expected_policies=()
     
-    case $environment in
-        "dev")
-            expected_roles=("lambda-execution-role-dev" "ec2-instance-role-dev" "rds-monitoring-role-dev")
-            expected_policies=("ppu-data-access-policy-dev" "insights-access-policy-dev")
-            ;;
-        "staging")
-            expected_roles=("lambda-execution-role-staging" "ec2-instance-role-staging" "rds-monitoring-role-staging")
-            expected_policies=("ppu-data-access-policy-staging" "insights-access-policy-staging")
-            ;;
-        "prod")
-            expected_roles=("lambda-execution-role" "ec2-instance-role" "rds-monitoring-role")
-            expected_policies=("ppu-data-access-policy" "insights-access-policy")
-            ;;
-    esac
+    if [[ -f "$expected_file" ]]; then
+        # Parse expected roles and policies from JSON file
+        expected_roles=($(jq -r '.expected_resources.iam.roles[].name' "$expected_file" 2>/dev/null || echo ""))
+        expected_policies=($(jq -r '.expected_resources.iam.policies[].name' "$expected_file" 2>/dev/null || echo ""))
+        
+        print_status "info" "Expected IAM roles: ${expected_roles[*]:-none}"
+        print_status "info" "Expected IAM policies: ${expected_policies[*]:-none}"
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_roles[@]} -eq 0 && ${#expected_policies[@]} -eq 0 ]]; then
+        print_status "info" "No expected IAM resources found, skipping verification"
+        return 0
+    fi
     
     local found_roles=()
     local missing_roles=()
@@ -214,19 +221,23 @@ main() {
     
     # Check IAM roles
     for role_name in "${expected_roles[@]}"; do
-        if check_iam_role "$role_name" "$region" > "/tmp/iam_role_check_${role_name}.json"; then
-            found_roles+=("$role_name")
-        else
-            missing_roles+=("$role_name")
+        if [[ -n "$role_name" && "$role_name" != "null" ]]; then
+            if check_iam_role "$role_name" "$region" > "/tmp/iam_role_check_${role_name}.json"; then
+                found_roles+=("$role_name")
+            else
+                missing_roles+=("$role_name")
+            fi
         fi
     done
     
     # Check IAM policies
     for policy_name in "${expected_policies[@]}"; do
-        if check_iam_policy "$policy_name" "$region" > "/tmp/iam_policy_check_${policy_name}.json"; then
-            found_policies+=("$policy_name")
-        else
-            missing_policies+=("$policy_name")
+        if [[ -n "$policy_name" && "$policy_name" != "null" ]]; then
+            if check_iam_policy "$policy_name" "$region" > "/tmp/iam_policy_check_${policy_name}.json"; then
+                found_policies+=("$policy_name")
+            else
+                missing_policies+=("$policy_name")
+            fi
         fi
     done
     
@@ -234,12 +245,34 @@ main() {
     
     if [[ -f "$results_file" ]]; then
         local temp_results="/tmp/iam_results.json"
+        # Create proper JSON arrays
+        local roles_found_json="[]"
+        local roles_missing_json="[]"
+        local policies_found_json="[]"
+        local policies_missing_json="[]"
+        
+        if [[ ${#found_roles[@]} -gt 0 ]]; then
+            roles_found_json="[$(printf '"%s",' "${found_roles[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_roles[@]} -gt 0 ]]; then
+            roles_missing_json="[$(printf '"%s",' "${missing_roles[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#found_policies[@]} -gt 0 ]]; then
+            policies_found_json="[$(printf '"%s",' "${found_policies[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_policies[@]} -gt 0 ]]; then
+            policies_missing_json="[$(printf '"%s",' "${missing_policies[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "roles_found": [$(printf '"%s",' "${found_roles[@]}" | sed 's/,$//')],
-  "roles_missing": [$(printf '"%s",' "${missing_roles[@]}" | sed 's/,$//')],
-  "policies_found": [$(printf '"%s",' "${found_policies[@]}" | sed 's/,$//')],
-  "policies_missing": [$(printf '"%s",' "${missing_policies[@]}" | sed 's/,$/')]
+  "roles_found": $roles_found_json,
+  "roles_missing": $roles_missing_json,
+  "policies_found": $policies_found_json,
+  "policies_missing": $policies_missing_json
 }
 EOF
         

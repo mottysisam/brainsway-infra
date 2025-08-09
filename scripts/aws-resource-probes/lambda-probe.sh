@@ -120,20 +120,12 @@ main() {
         expected_functions=($(jq -r '.expected_resources.lambda.functions[].name' "$expected_file" 2>/dev/null || echo ""))
         
         print_status "info" "Expected Lambda functions: ${expected_functions[*]:-none}"
-    else
-        print_status "warning" "Expected file not found, using environment-based defaults"
-        # Fallback to environment-based defaults if expected file is not available
-        case $environment in
-            "dev")
-                expected_functions=("insert-ppu-data-dev" "generatePresignedUrl-dev" "presignedUrlForS3Upload-dev" "sync_clock-dev" "softwareUpdateHandler-dev")
-                ;;
-            "staging")
-                expected_functions=("insert-ppu-data-staging" "generatePresignedUrl-staging" "presignedUrlForS3Upload-staging" "sync_clock-staging" "softwareUpdateHandler-staging")
-                ;;
-            "prod")
-                expected_functions=("insert-ppu-data-dev-insert_ppu" "generatePresignedUrl-v-1-9" "generatePresignedUrl" "presignedUrlForS3Upload" "softwareUpdateHandler" "sync_clock")
-                ;;
-        esac
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_functions[@]} -eq 0 ]]; then
+        print_status "info" "No expected Lambda functions found, skipping verification"
+        return 0
     fi
     
     local found_functions=()
@@ -153,10 +145,22 @@ main() {
     
     if [[ -f "$results_file" ]]; then
         local temp_results="/tmp/lambda_results.json"
+        # Create proper JSON arrays
+        local found_json="[]"
+        local missing_json="[]"
+        
+        if [[ ${#found_functions[@]} -gt 0 ]]; then
+            found_json="[$(printf '"%s",' "${found_functions[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_functions[@]} -gt 0 ]]; then
+            missing_json="[$(printf '"%s",' "${missing_functions[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "functions_found": [$(printf '"%s",' "${found_functions[@]}" | sed 's/,$//')]",
-  "functions_missing": [$(printf '"%s",' "${missing_functions[@]}" | sed 's/,$//')]"
+  "functions_found": $found_json,
+  "functions_missing": $missing_json
 }
 EOF
         

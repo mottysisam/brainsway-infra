@@ -15,13 +15,23 @@ resource "aws_api_gateway_rest_api" "this" {
   lifecycle { ignore_changes = all }
 }
 
-resource "aws_api_gateway_stage" "this" {
-  for_each             = var.stages
-  rest_api_id          = each.value.rest_api_id
-  stage_name           = each.value.stage_name
-  deployment_id        = each.value.deployment_id
-  description          = try(each.value.description, null)
-  variables            = try(each.value.variables, null)
-  xray_tracing_enabled = try(each.value.xray_tracing_enabled, null)
-  lifecycle { ignore_changes = all }
-}
+# resource "aws_api_gateway_deployment" "this" {
+#   for_each    = var.apis
+#   rest_api_id = aws_api_gateway_rest_api.this[each.key].id
+#   
+#   lifecycle {
+#     create_before_destroy = true
+#     ignore_changes = all
+#   }
+# }
+
+# resource "aws_api_gateway_stage" "this" {
+#   for_each             = var.stages
+#   rest_api_id          = each.value.rest_api_id
+#   stage_name           = each.value.stage_name
+#   deployment_id        = lookup(each.value, "deployment_id", aws_api_gateway_deployment.this[each.value.rest_api_id].id)
+#   description          = try(each.value.description, null)
+#   variables            = try(each.value.variables, null)
+#   xray_tracing_enabled = try(each.value.xray_tracing_enabled, null)
+#   lifecycle { ignore_changes = all }
+# }

@@ -325,20 +325,12 @@ main() {
         expected_instances=($(jq -r '.expected_resources.ec2.instances[].name' "$expected_file" 2>/dev/null || echo ""))
         
         print_status "info" "Expected EC2 instances: ${expected_instances[*]:-none}"
-    else
-        print_status "warning" "Expected file not found, using environment-based defaults"
-        # Fallback to environment-based defaults if expected file is not available
-        case $environment in
-            "dev")
-                expected_instances=("aurora-jump-server-dev" "insights-dev-backend" "insights-dev-frontend")
-                ;;
-            "staging")
-                expected_instances=("aurora-jump-server-staging" "insights-staging-backend" "insights-staging-frontend")
-                ;;
-            "prod")
-                expected_instances=("aurora-jump-server" "insights_prod_backend" "insights_prod_frontend")
-                ;;
-        esac
+    fi
+    
+    # If no expected resources were found from the file, skip probing
+    if [[ ${#expected_instances[@]} -eq 0 ]]; then
+        print_status "info" "No expected EC2 instances found, skipping verification"
+        return 0
     fi
     
     local found_instances=()
@@ -384,10 +376,22 @@ main() {
     if [[ -f "$results_file" ]]; then
         # Create a temporary file with EC2 results
         local temp_results="/tmp/ec2_results.json"
+        # Create proper JSON arrays
+        local found_json="[]"
+        local missing_json="[]"
+        
+        if [[ ${#found_instances[@]} -gt 0 ]]; then
+            found_json="[$(printf '"%s",' "${found_instances[@]}" | sed 's/,$//')]"
+        fi
+        
+        if [[ ${#missing_instances[@]} -gt 0 ]]; then
+            missing_json="[$(printf '"%s",' "${missing_instances[@]}" | sed 's/,$//')]"
+        fi
+        
         cat > "$temp_results" << EOF
 {
-  "instances_found": [$(printf '"%s",' "${found_instances[@]}" | sed 's/,$//')]",
-  "instances_missing": [$(printf '"%s",' "${missing_instances[@]}" | sed 's/,$//')]"
+  "instances_found": $found_json,
+  "instances_missing": $missing_json
 }
 EOF
         

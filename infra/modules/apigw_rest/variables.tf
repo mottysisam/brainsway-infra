@@ -12,7 +12,7 @@ variable "stages" {
   type = map(object({
     rest_api_id          = string
     stage_name           = string
-    deployment_id        = string
+    deployment_id        = optional(string)
     description          = optional(string)
     variables            = optional(map(string))
     xray_tracing_enabled = optional(bool)

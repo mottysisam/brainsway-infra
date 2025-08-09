@@ -26,7 +26,7 @@ inputs = {
     "generatePresignedUrl-staging": {
       "role": "arn:aws:iam::574210586915:role/lambda_s3_execution",
       "handler": "lambda_function.lambda_handler",
-      "runtime": "python3.6",
+      "runtime": "python3.9",
       "timeout": 10,
       "memory_size": 128,
       "architectures": [
@@ -44,7 +44,7 @@ inputs = {
     "presignedUrlForS3Upload-staging": {
       "role": "arn:aws:iam::574210586915:role/lambda_s3_execution",
       "handler": "lambda_function.lambda_handler",
-      "runtime": "python3.6",
+      "runtime": "python3.9",
       "timeout": 10,
       "memory_size": 128,
       "architectures": [
@@ -80,7 +80,7 @@ inputs = {
     "softwareUpdateHandler-staging": {
       "role": "arn:aws:iam::574210586915:role/sf_update_lambda_role",
       "handler": "lambda_function.lambda_handler",
-      "runtime": "python3.6",
+      "runtime": "python3.9",
       "timeout": 10,
       "memory_size": 128,
       "architectures": [
