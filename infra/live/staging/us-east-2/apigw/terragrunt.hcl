@@ -44,55 +44,5 @@ inputs = {
         "Environment": "staging"
       }
     }
-  },
-  "stages": {
-    "staging-s3-url-v18/staging": {
-      "rest_api_id": "staging-s3-url-v18",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "staging-s3-url/staging": {
-      "rest_api_id": "staging-s3-url",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "staging-sync-clock-api/staging": {
-      "rest_api_id": "staging-sync-clock-api",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "staging-sw-update/staging": {
-      "rest_api_id": "staging-sw-update",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "staging-s3-url-2/staging": {
-      "rest_api_id": "staging-s3-url-2",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    },
-    "staging-insert-ppu-data/staging": {
-      "rest_api_id": "staging-insert-ppu-data",
-      "stage_name": "staging",
-      "deployment_id": null,
-      "description": "Staging environment",
-      "variables": null,
-      "xray_tracing_enabled": false
-    }
   }
 }
