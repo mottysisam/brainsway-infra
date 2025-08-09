@@ -4,6 +4,7 @@ inputs = {
   # Basic VPC configuration for dev environment testing
   # Updated to test digger apply dev command
   # Testing digger comment functionality after merge
+  # Testing improved status check integration
   vpc = {
     cidr_block = "10.0.0.0/16"
     tags = {
