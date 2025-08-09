@@ -1,16 +1,12 @@
 name: iac
-
-# Serialize per-branch runs to avoid race conditions
 concurrency:
   group: iac-${{ github.ref }}
   cancel-in-progress: false
-
 on:
   pull_request:
     paths: [ 'infra/live/**' ]
   issue_comment:
     types: [created]
-
 jobs:
   digger:
     permissions:
@@ -20,41 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - id: env
         run: |
           set -euo pipefail
           PATHS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^infra/live/' || true)
-          if echo "$PATHS" | grep '/prod/'; then echo "env=prod" >> $GITHUB_OUTPUT;
-          elif echo "$PATHS" | grep '/staging/'; then echo "env=staging" >> $GITHUB_OUTPUT;
+          if echo "$PATHS" | grep '/prod/'; then echo "env=prod" >> $GITHUB_OUTPUT; 
+          elif echo "$PATHS" | grep '/staging/'; then echo "env=staging" >> $GITHUB_OUTPUT; 
           else echo "env=dev" >> $GITHUB_OUTPUT; fi
-      
-      - name: Guard prod applies (label required)
+      - name: Guard prod applies (prod is read-only)
         if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && steps.env.outputs.env == 'prod' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.issue.pull_request.url }}
         run: |
-          set -euo pipefail
-          labels=$(curl -s -H "authorization: Bearer $GITHUB_TOKEN" "$PR_URL/labels")
-          echo "$labels" | grep -q '"name":"approved-prod"' || { echo 'Missing required label: approved-prod' >&2; exit 1; }
-      
+          echo 'Prod is read-only in this repo. /digger apply is disabled for prod.' >&2
+          exit 1
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[format('AWS_ROLE_IAC_{0}', steps.env.outputs.env)] }}
+          role-to-assume: ${{ secrets[format('AWS_ROLE_IAC_{0}', steps.env.outputs.env | upper)] }}
           aws-region: us-east-2
-      
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
-      
       - name: Install Terragrunt
         run: |
           TG_VERSION=v0.58.14
           curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
-      
       - name: Digger
         uses: diggerhq/digger@v0

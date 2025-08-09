@@ -1,6 +1,5 @@
 version: 1
 collect_usage_data: false
-
 projects:
   - name: live
     dir: infra/live
@@ -8,7 +7,6 @@ projects:
     workflow: terragrunt-runall
     include_patterns:
       - "infra/live/**"
-
 workflows:
   terragrunt-runall:
     plan:

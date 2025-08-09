@@ -1,17 +1,16 @@
-# BOOTSTRAP\_PROMPT.md — brainsway‑infra
+# BOOTSTRAP_PROMPT.md — brainsway‑infra (Read‑Only Prod + Terraformer)
 
-This file is the **one‑shot prompt** you paste into **Claude Code** to scaffold the repo `github.com/mottysisam/brainsway-infra` for **Terragrunt + Digger on GitHub Actions**. It creates the skeleton, adds CI, and writes the bootstrap Terraform for state + OIDC roles. Keep **CLAUDE.md (Memory)** minimal—this file is only for initialization and runbooks.
+This is the **one‑shot prompt** you paste into **Claude Code** to scaffold `github.com/mottysisam/brainsway-infra` for **Terragrunt + Digger on GitHub Actions** with **production in read‑only (plan/import‑only) mode**. It builds the repo skeleton, adds secure CI, writes bootstrap Terraform for state + OIDC roles, and includes a **Terraformer-based prod import workflow**.
 
 ---
 
-## 👉 Copy everything inside the block below into Claude Code
 
 ````
 You are configuring the GitHub repo: https://github.com/mottysisam/brainsway-infra
-Goal: scaffold Terragrunt (live) + Digger CI, and add bootstrap Terraform for remote state and GitHub OIDC IAM roles. Produce a PR named "infra/bootstrap". Treat any error as a blocker. Use concise, descriptive commit messages.
+Goal: scaffold Terragrunt (live) + Digger CI, add bootstrap Terraform for remote state and GitHub OIDC IAM roles, and configure PRODUCTION as READ‑ONLY (plans/imports only; NO applies). Produce a PR named "infra/bootstrap". Treat any error as a blocker. Use concise, descriptive commit messages.
 
 # Canonical environments
-- prod    → account_id=154948530138, profile=bwamazonprod (🔴 sacred)
+- prod    → account_id=154948530138, profile=bwamazonprod (🔴 READ‑ONLY)
 - staging → account_id=574210586915, profile=bwamazonstaging
 - dev     → account_id=824357028182, profile=bwamazondev
 Default region: us-east-2. Typo trap: it's "bwamazonstaging" (not "bwamozonstaging").
@@ -19,23 +18,21 @@ Default region: us-east-2. Typo trap: it's "bwamazonstaging" (not "bwamozonstagi
 # Golden rules
 - Never run raw `terraform` in live stacks; use `terragrunt` locally. CI runs via Digger.
 - All changes via PR; applies only from PR comment `/digger apply` after approvals.
-- Production requires extra gates. No blind destroys.
+- **Prod is READ‑ONLY**: never apply in prod; only plan + import resources into state.
 
 # 1) Repo structure (create exactly these paths)
 - infra/modules/vpc
 - infra/live/{dev,staging,prod}/us-east-2/network
 - bootstrap/state
 - bootstrap/iam-oidc
+- import                      # docs + maps for prod imports
 - .github/workflows
 
 # 2) Terragrunt root + envs
 Create file: infra/live/terragrunt.hcl
 -------------------------------------
 terraform {
-  extra_arguments "default_args" {
-    commands  = ["plan","apply","destroy","refresh","import"]
-    arguments = ["-no-color"]
-  }
+  extra_arguments "default_args" { commands = ["plan","apply","destroy","refresh","import"] arguments=["-no-color"] }
 }
 locals { env_cfg = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals }
 remote_state {
@@ -49,7 +46,6 @@ remote_state {
     encrypt        = true
   }
 }
-
 # Provider and default tags
 generate "provider" {
   path      = "provider.aws.tf"
@@ -57,11 +53,10 @@ generate "provider" {
   contents  = <<EOF
 provider "aws" {
   region = "${local.env_cfg.aws_region}"
-  default_tags { tags = { Environment = "${local.env_cfg.env}", ManagedBy = "Terragrunt+Digger", Owner = "Brainsway" } }
+  default_tags { tags = { Environment = "${local.env_cfg.env}", ManagedBy = "Terragrunt+Digger", Owner = "Brainsway", Compliance = "HIPAA,FDA", CostCenter = "Infra" } }
 }
 EOF
 }
-
 # Hard account gate
 before_hook "verify_account" {
   commands = ["plan","apply","destroy","refresh"]
@@ -91,7 +86,7 @@ Create: infra/live/dev/us-east-2/network/terragrunt.hcl
 -------------------------------------
 include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/vpc" }
-tfvars = { cidr_block = "10.10.0.0/16" }
+inputs = { cidr_block = "10.10.0.0/16" }
 
 # 3) Minimal module so plans aren't empty
 Create in infra/modules/vpc:
@@ -135,10 +130,13 @@ workflows:
       steps:
         - run: terragrunt run-all apply -auto-approve -no-color -parallelism 2
 
-# 5) GitHub Actions workflow (with prod gate label)
+# 5) GitHub Actions workflow (with prod read-only guard)
 Create: .github/workflows/iac.yml
 -------------------------------------
 name: iac
+concurrency:
+  group: iac-${{ github.ref }}
+  cancel-in-progress: false
 on:
   pull_request:
     paths: [ 'infra/live/**' ]
@@ -157,18 +155,14 @@ jobs:
         run: |
           set -euo pipefail
           PATHS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^infra/live/' || true)
-          if echo "$PATHS" | grep '/prod/'; then echo "env=prod" >> $GITHUB_OUTPUT;
-          elif echo "$PATHS" | grep '/staging/'; then echo "env=staging" >> $GITHUB_OUTPUT;
+          if echo "$PATHS" | grep '/prod/'; then echo "env=prod" >> $GITHUB_OUTPUT; 
+          elif echo "$PATHS" | grep '/staging/'; then echo "env=staging" >> $GITHUB_OUTPUT; 
           else echo "env=dev" >> $GITHUB_OUTPUT; fi
-      - name: Guard prod applies (label required)
+      - name: Guard prod applies (prod is read-only)
         if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && steps.env.outputs.env == 'prod' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.issue.pull_request.url }}
         run: |
-          set -euo pipefail
-          labels=$(curl -s -H "authorization: Bearer $GITHUB_TOKEN" "$PR_URL/labels")
-          echo "$labels" | grep -q '"name":"approved-prod"' || { echo 'Missing required label: approved-prod' >&2; exit 1; }
+          echo 'Prod is read-only in this repo. /digger apply is disabled for prod.' >&2
+          exit 1
       - name: Configure AWS creds via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -202,11 +196,25 @@ terraform {
 }
 provider "aws" { region = var.region }
 locals { bucket_name = "${var.bucket_prefix}-${var.env}-${var.region}"  table_name = "${var.dynamodb_table_prefix}-${var.env}" }
+# S3 bucket with KMS (AWS-managed key) and strict policies
+data "aws_kms_key" "s3" { key_id = "alias/aws/s3" }
 resource "aws_s3_bucket" "state" { bucket = local.bucket_name  force_destroy = false  tags = merge(var.tags, { Environment = var.env, ManagedBy = "bootstrap" }) }
 resource "aws_s3_bucket_public_access_block" "state" { bucket = aws_s3_bucket.state.id block_public_acls=true block_public_policy=true ignore_public_acls=true restrict_public_buckets=true }
 resource "aws_s3_bucket_versioning" "state" { bucket = aws_s3_bucket.state.id versioning_configuration { status = "Enabled" } }
-resource "aws_s3_bucket_server_side_encryption_configuration" "state" { bucket = aws_s3_bucket.state.id rule { apply_server_side_encryption_by_default { sse_algorithm = "AES256" } } }
+resource "aws_s3_bucket_server_side_encryption_configuration" "state" { bucket = aws_s3_bucket.state.id rule { apply_server_side_encryption_by_default { sse_algorithm = "aws:kms" kms_master_key_id = data.aws_kms_key.s3.arn } } }
+resource "aws_s3_bucket_policy" "state_secure" {
+  bucket = aws_s3_bucket.state.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      { Sid: "RequireTLS", Effect: "Deny", Principal: "*", Action: "s3:*", Resource: [aws_s3_bucket.state.arn, "${aws_s3_bucket.state.arn}/*"], Condition: { Bool: { "aws:SecureTransport": false } } },
+      { Sid: "RequireKMSEncryption", Effect: "Deny", Principal: "*", Action: "s3:PutObject", Resource: "${aws_s3_bucket.state.arn}/*", Condition: { StringNotEquals: { "s3:x-amz-server-side-encryption": "aws:kms" } } }
+    ]
+  })
+}
+# DynamoDB locks with PITR
 resource "aws_dynamodb_table" "locks" { name = local.table_name billing_mode = "PAY_PER_REQUEST" hash_key = "LockID" attribute { name = "LockID" type = "S" } tags = merge(var.tags, { Environment = var.env, ManagedBy = "bootstrap" }) }
+resource "aws_dynamodb_table_point_in_time_recovery" "locks_pitr" { table_name = aws_dynamodb_table.locks.name point_in_time_recovery_enabled = true }
 output "state_bucket_name" { value = aws_s3_bucket.state.bucket }
 output "lock_table_name"   { value = aws_dynamodb_table.locks.name }
 
@@ -220,6 +228,8 @@ variable "github_repo" { type = string }
 variable "github_oidc_provider_arn" { type = string }
 variable "managed_policy_arns" { type = list(string) default = [] }
 variable "session_duration" { type = number default = 3600 }
+variable "state_bucket_arn" { type = string default = "" }     # for prod: S3 state write
+variable "lock_table_arn"  { type = string default = "" }      # for prod: DynamoDB lock write
 variable "tags" { type = map(string) default = {} }
 
 main.tf
@@ -243,13 +253,27 @@ resource "aws_iam_role" "iac" {
   max_session_duration = var.session_duration
   tags = merge(var.tags, { Environment = var.env, ManagedBy = "bootstrap" })
 }
+# Attach managed policies (e.g., ReadOnlyAccess for prod; PowerUserAccess for dev/staging)
 resource "aws_iam_role_policy_attachment" "managed" { for_each = toset(var.managed_policy_arns) role = aws_iam_role.iac.name policy_arn = each.value }
+# Inline policy: allow state writes only (if ARNs provided)
+resource "aws_iam_role_policy" "state_rw" {
+  count = (var.state_bucket_arn != "" && var.lock_table_arn != "") ? 1 : 0
+  name  = "state-rw"
+  role  = aws_iam_role.iac.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      { Effect = "Allow", Action = ["s3:GetObject","s3:PutObject","s3:ListBucket"], Resource = [var.state_bucket_arn, "${var.state_bucket_arn}/*"] },
+      { Effect = "Allow", Action = ["dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:DeleteItem","dynamodb:DescribeTable"], Resource = var.lock_table_arn }
+    ]
+  })
+}
 output "role_arn"  { value = aws_iam_role.iac.arn }
 output "role_name" { value = aws_iam_role.iac.name }
 
 # 8) Commit & open PR
 - Add all files created above.
-- Commit with message: "feat: bootstrap Terragrunt live + Digger CI + bootstrap modules".
+- Commit with message: "feat: bootstrap Terragrunt live + Digger CI + bootstrap modules (prod read-only)".
 - Open a PR named: **infra/bootstrap** with a summary of changes.
 
 # 9) Human-run steps (document in PR description)
@@ -273,28 +297,32 @@ Update `infra/live/<env>/env.hcl` with `state_bucket` and `lock_table` outputs.
 2. **Create GitHub OIDC roles (per env)** and store ARNs as repo secrets:
 
    ```bash
-   # DEV
+   # DEV (PowerUserAccess is OK for sandbox)
    export AWS_PROFILE=bwamazondev && cd ../iam-oidc && terraform init && terraform apply \
      -var env=dev -var github_org=mottysisam -var github_repo=brainsway-infra \
      -var github_oidc_provider_arn=arn:aws:iam::824357028182:oidc-provider/token.actions.githubusercontent.com \
      -var managed_policy_arns='["arn:aws:iam::aws:policy/PowerUserAccess"]'
    gh secret set AWS_ROLE_IAC_DEV -b "$(terraform output -raw role_arn)"
 
-   # STAGING
+   # STAGING (PowerUserAccess acceptable if gated)
    export AWS_PROFILE=bwamazonstaging && terraform apply \
      -var env=staging -var github_org=mottysisam -var github_repo=brainsway-infra \
      -var github_oidc_provider_arn=arn:aws:iam::574210586915:oidc-provider/token.actions.githubusercontent.com \
      -var managed_policy_arns='["arn:aws:iam::aws:policy/PowerUserAccess"]'
    gh secret set AWS_ROLE_IAC_STAGING -b "$(terraform output -raw role_arn)"
 
-   # PROD (least-privilege, no broad policies by default)
+   # PROD (READ-ONLY + state write only)
+   # Use ReadOnlyAccess + inline policy for state S3/DynamoDB writes (pass ARNs from step 1 outputs)
    export AWS_PROFILE=bwamazonprod && terraform apply \
      -var env=prod -var github_org=mottysisam -var github_repo=brainsway-infra \
-     -var github_oidc_provider_arn=arn:aws:iam::154948530138:oidc-provider/token.actions.githubusercontent.com
+     -var github_oidc_provider_arn=arn:aws:iam::154948530138:oidc-provider/token.actions.githubusercontent.com \
+     -var managed_policy_arns='["arn:aws:iam::aws:policy/ReadOnlyAccess"]' \
+     -var state_bucket_arn="arn:aws:s3:::bw-tf-state-prod-us-east-2" \
+     -var lock_table_arn="arn:aws:dynamodb:us-east-2:154948530138:table/bw-tf-locks-prod"
    gh secret set AWS_ROLE_IAC_PROD -b "$(terraform output -raw role_arn)"
    ```
 
-3. **GitHub protections & label**
+3. **GitHub protections**
 
    ```bash
    gh api -X PUT repos/mottysisam/brainsway-infra/environments/production
@@ -303,20 +331,106 @@ Update `infra/live/<env>/env.hcl` with `state_bucket` and `lock_table` outputs.
    gh api -X PUT repos/mottysisam/brainsway-infra/branches/main/protection \
      -F required_status_checks.strict=true -F enforce_admins=true \
      -F required_pull_request_reviews.required_approving_review_count=1
-   gh label create approved-prod --color FF0000 --description "Required to allow prod applies"
    ```
 
 # 10) Verification
 
 * Open a feature branch touching `infra/live/dev/**` and confirm Digger posts a plan in the PR.
 * The Terragrunt `before_hook` must print the account check and fail if creds are wrong.
-* Comment `/digger apply` to apply **dev** only (after review). Prod requires the `approved-prod` label + environment approval.
+* Comment `/digger apply` to apply **dev** only (after review). **Prod applies must fail** (read‑only policy).
 
 # 11) Deliverables checklist (PR must include)
 
 * All files above created with exact paths and content.
 * PR description includes: the three backend bucket names + lock tables, and the three role ARNs (masked as needed).
-* A note that production has not been applied.
+* A note that production has **not** been applied and is configured as **read‑only**.
+
+# 12) Production import (read‑only)
+
+Create a helper workflow and docs to import existing prod resources into Terraform state without changing AWS.
+
+## Create: .github/workflows/prod-import.yml
+
+name: prod-import
+on:
+workflow\_dispatch:
+inputs:
+regions:
+description: "AWS regions (comma-separated)"
+required: true
+default: "us-east-2"
+resources:
+description: "Terraformer resources list (e.g., vpc,subnet,route\_table)"
+required: true
+default: "vpc,subnet"
+filters:
+description: "Optional --filter string (e.g., aws\_vpc=vpc-xxxx)"
+required: false
+jobs:
+discover:
+runs-on: ubuntu-latest
+permissions:
+id-token: write
+contents: read
+steps:
+\- uses: actions/checkout\@v4
+\- name: Configure AWS creds (prod, read-only+state)
+uses: aws-actions/configure-aws-credentials\@v4
+with:
+role-to-assume: \${{ secrets.AWS\_ROLE\_IAC\_PROD }}
+aws-region: us-east-2
+\- name: Install terraformer
+run: |
+curl -L [https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-all-linux-amd64](https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-all-linux-amd64) -o /usr/local/bin/terraformer
+chmod +x /usr/local/bin/terraformer
+\- name: Run terraformer (discovery only)
+env:
+REGIONS: \${{ github.event.inputs.regions }}
+RES: \${{ github.event.inputs.resources }}
+FIL: \${{ github.event.inputs.filters }}
+run: |
+mkdir -p tmp/terraformer
+set -euo pipefail
+ARGS=(import aws --regions=\${REGIONS} --resources=\${RES} --path-output=tmp/terraformer --compact)
+if \[ -n "\${FIL}" ]; then ARGS+=(--filter "\${FIL}"); fi
+terraformer "\${ARGS\[@]}"
+\- name: Build import script artifact
+run: |
+set -euo pipefail
+find tmp/terraformer -name import.sh -print0 | xargs -0 cat > import\_raw\.sh || true
+if \[ -s import\_raw\.sh ]; then sed 's/terraform/terragrunt/g' import\_raw\.sh > import.sh; fi
+\- name: Upload artifacts
+uses: actions/upload-artifact\@v4
+with:
+name: prod-import-scripts
+path: |
+import.sh
+tmp/terraformer/\*\*
+
+## Create: import/README.md
+
+# Production Import (Read‑Only)
+
+**Policy:** Prod is read‑only. Use these steps to adopt resources into state without changing AWS.
+
+1. Model the real config in module inputs under `infra/live/prod/...`.
+2. Use the `prod-import` workflow to generate `import.sh` or build your own map.
+3. Align import addresses to your module naming (e.g., `module.network.aws_vpc.this`).
+4. Run imports from the stack dir:
+
+   ```bash
+   terragrunt init -migrate-state -force-copy
+   bash import.sh   # or: while read -r addr id; do terragrunt import "$addr" "$id"; done < prod.map
+   terragrunt plan  # expect no changes
+   ```
+
+## Create: import/prod.map.example
+
+module.network.aws\_vpc.this vpc-0123456789abcdef0
+module.network.aws\_subnet.private\["use2a"] subnet-0aaa...
+module.network.aws\_subnet.private\["use2b"] subnet-0bbb...
+module.network.aws\_route\_table.main rtb-0123...
+module.network.aws\_internet\_gateway.this igw-0abc...
 
 End of instructions.
 
@@ -325,8 +439,8 @@ End of instructions.
 ---
 
 ### Notes
-- This bootstrap keeps modules **in-repo** for speed. If you split to a dedicated modules repo later, change Terragrunt `source` to a git/registry URL.
+- Modules are in-repo for speed. If you split to a dedicated modules repo later, change Terragrunt `source` to a git/registry URL.
+- **Prod applies are disabled by design.** CI uses a read‑only + state‑write role.
 - Don’t store secrets in code. Only ARNs go into GH secrets.
 - If your org enforces SSO on console roles, ensure the OIDC roles have appropriate trust and minimal policies.
-
 ```
