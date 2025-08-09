@@ -170,6 +170,29 @@ jobs:
           echo "Available modules:"
           find . -name "terragrunt.hcl" -type f | head -10
           
+          # Check if state backend is available for staging/prod
+          if [ "${{ matrix.environment }}" = "staging" ] || [ "${{ matrix.environment }}" = "prod" ]; then
+            echo "🔍 Checking if state backend is available for ${{ matrix.environment }} environment..."
+            
+            # Try to check if the state bucket exists
+            STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
+            if ! aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+              echo "⚠️  State backend not found for ${{ matrix.environment }} environment"
+              echo "📋 State bucket '$STATE_BUCKET' does not exist"
+              echo "🛠️  Manual bootstrap required before terragrunt operations can succeed"
+              echo "📖 See BOOTSTRAP_PROMPT.md for setup instructions"
+              
+              # Don't fail the job, just skip with a clear message
+              if [ "${{ matrix.environment }}" = "prod" ]; then
+                echo "🔒 Production environment requires manual bootstrap and is read-only by design"
+              else
+                echo "🎭 Staging environment requires manual bootstrap before deployment"
+              fi
+              echo "✅ This is expected behavior until manual bootstrap is completed"
+              exit 0
+            fi
+          fi
+          
           # Determine action based on event type and environment
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
             echo "🚀 Auto-deploying to dev environment on merge to main"
@@ -223,9 +246,12 @@ jobs:
       - name: Generate Deployment Report
         run: |
           chmod +x scripts/generate-deployment-report.sh
+          # Convert JSON array to comma-separated string for script
+          ENVIRONMENTS_JSON='${{ needs.detect-environments.outputs.environments }}'
+          ENVIRONMENTS_CSV=$(echo "$ENVIRONMENTS_JSON" | jq -r 'join(",")')
           ./scripts/generate-deployment-report.sh \
             "deployment-report.html" \
-            "${{ needs.detect-environments.outputs.environments }}" \
+            "$ENVIRONMENTS_CSV" \
             "${{ github.event.pull_request.number }}" \
             "${{ github.sha }}"
 

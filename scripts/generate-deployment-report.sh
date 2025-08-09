@@ -407,7 +407,16 @@ TOTAL_UPDATE=0
 TOTAL_DELETE=0
 
 # Process each environment
-IFS=',' read -ra ENV_ARRAY <<< "$ENVIRONMENTS"
+# Handle both JSON array format and comma-separated format
+if [[ "$ENVIRONMENTS" =~ ^\[.*\]$ ]]; then
+    # JSON array format: ["dev","staging","prod"] -> dev,staging,prod
+    ENV_STRING=$(echo "$ENVIRONMENTS" | sed 's/^\[//;s/\]$//;s/"//g;s/,/ /g')
+    read -ra ENV_ARRAY <<< "$ENV_STRING"
+else
+    # Comma-separated format: dev,staging,prod
+    IFS=',' read -ra ENV_ARRAY <<< "$ENVIRONMENTS"
+fi
+
 for env in "${ENV_ARRAY[@]}"; do
     env=$(echo "$env" | xargs) # trim whitespace
     
