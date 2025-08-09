@@ -220,6 +220,10 @@ jobs:
           echo "Available modules:"
           find . -name "terragrunt.hcl" -type f | head -10
           
+          # Clear Terragrunt cache to ensure we use the latest module versions
+          echo "🧹 Clearing Terragrunt cache to use latest modules..."
+          find . -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null || true
+          
           # Check if state backend is available for staging/prod
           if [ "${{ matrix.environment }}" = "staging" ] || [ "${{ matrix.environment }}" = "prod" ]; then
             echo "🔍 Checking if state backend is available for ${{ matrix.environment }} environment..."
