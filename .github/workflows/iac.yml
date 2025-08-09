@@ -113,8 +113,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # For issue comments, checkout the PR head commit
-          ref: ${{ github.event_name == 'issue_comment' && github.event.pull_request.head.sha || github.sha }}
+          # For issue comments, we'll get the proper SHA in the next step
+          ref: ${{ github.event_name == 'issue_comment' && github.sha || github.sha }}
 
       - name: Get PR context for issue comments
         id: pr-context
@@ -135,6 +135,12 @@ jobs:
           echo "head_ref=${PR_HEAD_REF}" >> $GITHUB_OUTPUT
           
           echo "🔍 PR Context: #${PR_NUMBER}, SHA: ${PR_HEAD_SHA}, Ref: ${PR_HEAD_REF}"
+
+      - name: Checkout PR head for issue comments
+        if: github.event_name == 'issue_comment'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr-context.outputs.head_sha }}
 
       - name: Create pending status check
         if: github.event_name == 'issue_comment'
