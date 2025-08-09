@@ -114,12 +114,6 @@ jobs:
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
 
       - name: Digger
-        uses: diggerhq/digger@v0.4.15
-        with:
-          disable-locking: true
+        uses: diggerhq/digger@v0.3.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-          USE_DIGGER_CLOUD: "false"
-          DIGGER_DISABLE_POLICY: "true"
-          DIGGER_TOKEN: "dummy-local-token"
