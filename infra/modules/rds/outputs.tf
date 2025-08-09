@@ -19,7 +19,6 @@ output "db_instances" {
       username          = v.username
       endpoint          = v.endpoint
       port              = v.port
-      status            = v.status
       multi_az          = v.multi_az
       publicly_accessible = v.publicly_accessible
     }
@@ -45,7 +44,6 @@ output "db_clusters" {
       endpoint           = v.endpoint
       reader_endpoint    = v.reader_endpoint
       port              = v.port
-      status            = v.status
     }
   }
   sensitive = false
