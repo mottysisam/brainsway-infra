@@ -102,6 +102,8 @@ jobs:
 
       - name: Digger
         uses: diggerhq/digger@v0.4.15
+        with:
+          disable-locking: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_CONTEXT: ${{ toJSON(github) }}
