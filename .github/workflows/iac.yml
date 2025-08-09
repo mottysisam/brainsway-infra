@@ -176,19 +176,26 @@ jobs:
             
             # Try to check if the state bucket exists
             STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
-            if ! aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "📋 Checking for state bucket: $STATE_BUCKET"
+            
+            # Check bucket existence without failing the script
+            if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+              echo "✅ State backend found for ${{ matrix.environment }} environment"
+            else
               echo "⚠️  State backend not found for ${{ matrix.environment }} environment"
-              echo "📋 State bucket '$STATE_BUCKET' does not exist"
+              echo "📋 State bucket '$STATE_BUCKET' does not exist or is not accessible"
               echo "🛠️  Manual bootstrap required before terragrunt operations can succeed"
               echo "📖 See BOOTSTRAP_PROMPT.md for setup instructions"
               
-              # Don't fail the job, just skip with a clear message
+              # Provide environment-specific guidance
               if [ "${{ matrix.environment }}" = "prod" ]; then
                 echo "🔒 Production environment requires manual bootstrap and is read-only by design"
               else
                 echo "🎭 Staging environment requires manual bootstrap before deployment"
               fi
+              echo ""
               echo "✅ This is expected behavior until manual bootstrap is completed"
+              echo "🎯 Marking job as successful since this is the intended bootstrap workflow"
               exit 0
             fi
           fi
