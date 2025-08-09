@@ -1,0 +1,15 @@
+{
+    "item": [
+        {
+            "deploymentId": "91y4vm",
+            "stageName": "prod",
+            "description": "production",
+            "cacheClusterEnabled": false,
+            "cacheClusterStatus": "NOT_AVAILABLE",
+            "methodSettings": {},
+            "tracingEnabled": false,
+            "createdDate": "2018-02-12T10:21:51+02:00",
+            "lastUpdatedDate": "2018-08-08T11:42:43+03:00"
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+module.apigw.aws_api_gateway_rest_api.this["ndk8t3b961"] ndk8t3b961
+module.apigw.aws_api_gateway_stage.this["ndk8t3b961:Prod"] ndk8t3b961/Prod
+module.apigw.aws_api_gateway_rest_api.this["9553ewljh9"] 9553ewljh9
+module.apigw.aws_api_gateway_stage.this["9553ewljh9:prod"] 9553ewljh9/prod
+module.apigw.aws_api_gateway_rest_api.this["lc0kt8b3p5"] lc0kt8b3p5
+module.apigw.aws_api_gateway_stage.this["lc0kt8b3p5:dev"] lc0kt8b3p5/dev
+module.apigw.aws_api_gateway_rest_api.this["j1w31ky0s3"] j1w31ky0s3
+module.apigw.aws_api_gateway_stage.this["j1w31ky0s3:prod"] j1w31ky0s3/prod
+module.apigw.aws_api_gateway_rest_api.this["pixwwabvy7"] pixwwabvy7
+module.apigw.aws_api_gateway_stage.this["pixwwabvy7:prod"] pixwwabvy7/prod
+module.apigw.aws_api_gateway_rest_api.this["626pn9jbxh"] 626pn9jbxh
+module.apigw.aws_api_gateway_stage.this["626pn9jbxh:dev"] 626pn9jbxh/dev
+module.apigw.aws_api_gateway_stage.this["626pn9jbxh:prod"] 626pn9jbxh/prod

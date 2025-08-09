@@ -1,7 +1,12 @@
 terraform {
-  extra_arguments "default_args" { commands = ["plan","apply","destroy","refresh","import"] arguments=["-no-color"] }
+  extra_arguments "default_args" {
+    commands  = ["plan","apply","destroy","refresh","import"]
+    arguments = ["-no-color"]
+  }
 }
-locals { env_cfg = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals }
+locals {
+  env_cfg = read_terragrunt_config(find_in_parent_folders("env.hcl")).locals
+}
 remote_state {
   backend  = "s3"
   generate = { path = "backend.tf", if_exists = "overwrite" }
@@ -13,18 +18,16 @@ remote_state {
     encrypt        = true
   }
 }
-# Provider and default tags
 generate "provider" {
   path      = "provider.aws.tf"
   if_exists = "overwrite"
   contents  = <<EOF
 provider "aws" {
   region = "${local.env_cfg.aws_region}"
-  default_tags { tags = { Environment = "${local.env_cfg.env}", ManagedBy = "Terragrunt+Digger", Owner = "Brainsway", Compliance = "HIPAA,FDA", CostCenter = "Infra" } }
+  default_tags { tags = { Environment = "${local.env_cfg.env}", ManagedBy = "Terragrunt+Digger", Owner = "Brainsway" } }
 }
 EOF
 }
-# Hard account gate
 before_hook "verify_account" {
   commands = ["plan","apply","destroy","refresh"]
   execute  = ["bash","-lc",<<EOC

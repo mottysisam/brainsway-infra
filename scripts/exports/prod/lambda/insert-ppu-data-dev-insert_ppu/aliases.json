@@ -1,0 +1,11 @@
+{
+    "Aliases": [
+        {
+            "AliasArn": "arn:aws:lambda:us-east-2:154948530138:function:insert-ppu-data-dev-insert_ppu:latest",
+            "Name": "latest",
+            "FunctionVersion": "15",
+            "Description": "",
+            "RevisionId": "0c0af8d8-042a-4814-afea-c29a2fc404c3"
+        }
+    ]
+}

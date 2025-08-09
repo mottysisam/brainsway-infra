@@ -1,0 +1,17 @@
+{
+    "items": [
+        {
+            "id": "31y61r",
+            "parentId": "xhf5cuywk0",
+            "pathPart": "load",
+            "path": "/load",
+            "resourceMethods": {
+                "ANY": {}
+            }
+        },
+        {
+            "id": "xhf5cuywk0",
+            "path": "/"
+        }
+    ]
+}

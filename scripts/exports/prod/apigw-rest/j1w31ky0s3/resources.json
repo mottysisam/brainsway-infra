@@ -1,0 +1,17 @@
+{
+    "items": [
+        {
+            "id": "1v77w5",
+            "parentId": "5rykjqsxe5",
+            "pathPart": "swups",
+            "path": "/swups",
+            "resourceMethods": {
+                "POST": {}
+            }
+        },
+        {
+            "id": "5rykjqsxe5",
+            "path": "/"
+        }
+    ]
+}

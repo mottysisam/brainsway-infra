@@ -1,0 +1,15 @@
+{
+    "id": "ndk8t3b961",
+    "name": "S3 URL V-1-8",
+    "description": "to get presigned URL for S3 for version 1.8",
+    "createdDate": "2020-10-27T12:02:48+02:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "EDGE"
+        ]
+    },
+    "tags": {},
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "x5yrnvrzea"
+}

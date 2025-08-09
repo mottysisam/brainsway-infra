@@ -1,0 +1,357 @@
+{
+    "VpcEndpoints": [
+        {
+            "VpcEndpointId": "vpce-03e83da65d72240ba",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-06bf7da21660e717b",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-40895a0d"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-0bfa7b09dec3f6e48",
+                "eni-0b8e800c219421358"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-03e83da65d72240ba-sjbkrrh5.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-03e83da65d72240ba-sjbkrrh5-us-east-2b.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-03e83da65d72240ba-sjbkrrh5-us-east-2c.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2022-04-11T13:51:56.107000+00:00",
+            "Tags": [
+                {
+                    "Key": "project",
+                    "Value": "it-global"
+                },
+                {
+                    "Key": "service",
+                    "Value": "vpn"
+                }
+            ],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-04045e27e5fe64d3a",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-05fa0497f144c8a4a",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-47cb8d2e"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-092bdd6f82758b723",
+                "eni-013b49e18a80a7579"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-04045e27e5fe64d3a-sjv429ob.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-04045e27e5fe64d3a-sjv429ob-us-east-2a.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-04045e27e5fe64d3a-sjv429ob-us-east-2b.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2024-01-18T13:47:43.806000+00:00",
+            "Tags": [],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-05c18f64c5b29e501",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.us-east-2.guardduty-data",
+            "State": "available",
+            "PolicyDocument": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"*\",\"Resource\":\"*\",\"Effect\":\"Allow\",\"Principal\":\"*\"},{\"Condition\":{\"StringNotEquals\":{\"aws:PrincipalAccount\":\"154948530138\"}},\"Action\":\"*\",\"Resource\":\"*\",\"Effect\":\"Deny\",\"Principal\":\"*\"}]}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-40895a0d",
+                "subnet-47cb8d2e"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-070322ceb3fe42ccd",
+                    "GroupName": "GuardDutyManagedSecurityGroup-vpc-d2a9d9bb"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": true,
+            "RequesterManaged": false,
+            "NetworkInterfaceIds": [
+                "eni-0900577abd8c566ec",
+                "eni-059d71f6901dfd64f",
+                "eni-0a96052ed8cda13c1"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-05c18f64c5b29e501-mw0fooea.guardduty-data.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-05c18f64c5b29e501-mw0fooea-us-east-2a.guardduty-data.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-05c18f64c5b29e501-mw0fooea-us-east-2b.guardduty-data.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-05c18f64c5b29e501-mw0fooea-us-east-2c.guardduty-data.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "guardduty-data.us-east-2.amazonaws.com",
+                    "HostedZoneId": "Z0532124MR0N6D2RFLVP"
+                }
+            ],
+            "CreationTimestamp": "2024-04-15T10:12:29.720000+00:00",
+            "Tags": [
+                {
+                    "Key": "GuardDutyManaged",
+                    "Value": "true"
+                }
+            ],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-038ae18e92eb1b316",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-094483e3c0e40c03b",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-40895a0d"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-03cf34bca33493824",
+                "eni-03832689c91ac9dfb"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-038ae18e92eb1b316-khfod4ql.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-038ae18e92eb1b316-khfod4ql-us-east-2b.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-038ae18e92eb1b316-khfod4ql-us-east-2c.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2025-04-03T10:18:03.214000+00:00",
+            "Tags": [],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-0e316e0836057e662",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-06bf7da21660e717b",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-40895a0d"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-0a3b995c072b50228",
+                "eni-0ce055c5d50da358c"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-0e316e0836057e662-bt70t464.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0e316e0836057e662-bt70t464-us-east-2b.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0e316e0836057e662-bt70t464-us-east-2c.vpce-svc-06bf7da21660e717b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2025-04-06T07:35:37.423000+00:00",
+            "Tags": [],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-0495e09585e7af9d6",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-05fa0497f144c8a4a",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-fa22af81",
+                "subnet-40895a0d"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-0b50e4e80d641d3b4",
+                "eni-07e05ede7b8a52c2b"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-0495e09585e7af9d6-r73tm48f.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0495e09585e7af9d6-r73tm48f-us-east-2c.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0495e09585e7af9d6-r73tm48f-us-east-2b.vpce-svc-05fa0497f144c8a4a.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2025-06-15T09:47:17.202000+00:00",
+            "Tags": [],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        },
+        {
+            "VpcEndpointId": "vpce-0bd867c875b75c7a3",
+            "VpcEndpointType": "Interface",
+            "VpcId": "vpc-d2a9d9bb",
+            "ServiceName": "com.amazonaws.vpce.us-east-2.vpce-svc-094483e3c0e40c03b",
+            "State": "available",
+            "PolicyDocument": "{\n  \"Statement\": [\n    {\n      \"Action\": \"*\", \n      \"Effect\": \"Allow\", \n      \"Principal\": \"*\", \n      \"Resource\": \"*\"\n    }\n  ]\n}",
+            "RouteTableIds": [],
+            "SubnetIds": [
+                "subnet-40895a0d",
+                "subnet-47cb8d2e"
+            ],
+            "Groups": [
+                {
+                    "GroupId": "sg-0c0a0065",
+                    "GroupName": "default"
+                }
+            ],
+            "IpAddressType": "ipv4",
+            "DnsOptions": {
+                "DnsRecordIpType": "ipv4"
+            },
+            "PrivateDnsEnabled": false,
+            "RequesterManaged": true,
+            "NetworkInterfaceIds": [
+                "eni-0ea13df945f48b050",
+                "eni-0e36fd73c728bee8e"
+            ],
+            "DnsEntries": [
+                {
+                    "DnsName": "vpce-0bd867c875b75c7a3-r06mmesi.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0bd867c875b75c7a3-r06mmesi-us-east-2a.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                },
+                {
+                    "DnsName": "vpce-0bd867c875b75c7a3-r06mmesi-us-east-2c.vpce-svc-094483e3c0e40c03b.us-east-2.vpce.amazonaws.com",
+                    "HostedZoneId": "ZC8PG0KIFKBRI"
+                }
+            ],
+            "CreationTimestamp": "2025-08-06T09:53:44.540000+00:00",
+            "Tags": [],
+            "OwnerId": "154948530138",
+            "ServiceRegion": "us-east-2"
+        }
+    ]
+}

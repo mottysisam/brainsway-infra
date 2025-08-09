@@ -1,0 +1,44 @@
+{
+    "Configuration": {
+        "FunctionName": "sync_clock",
+        "FunctionArn": "arn:aws:lambda:us-east-2:154948530138:function:sync_clock",
+        "Runtime": "python3.12",
+        "Role": "arn:aws:iam::154948530138:role/lambda-vpc-role",
+        "Handler": "lambda_function.lambda_handler",
+        "CodeSize": 327,
+        "Description": "",
+        "Timeout": 3,
+        "MemorySize": 128,
+        "LastModified": "2024-06-09T09:25:52.057+0000",
+        "CodeSha256": "4LDPMr688D+ofMpHHHpQP6KHltyWR7HjZ/gxYQGzBAQ=",
+        "Version": "$LATEST",
+        "TracingConfig": {
+            "Mode": "PassThrough"
+        },
+        "RevisionId": "4105851d-1164-4322-9d6f-ccbf9e2e8c57",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "PackageType": "Zip",
+        "Architectures": [
+            "x86_64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "RuntimeVersionConfig": {
+            "RuntimeVersionArn": "arn:aws:lambda:us-east-2::runtime:aa140c0e9a9c41d993cb36eaf76013968a27ec935d7665a4368d6b0ba10a0f7e"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/sync_clock"
+        }
+    },
+    "Code": {
+        "RepositoryType": "S3",
+        "Location": "https://awslambda-us-east-2-tasks.s3.us-east-2.amazonaws.com/snapshots/154948530138/sync_clock-125a19a9-5f64-42fd-8d03-52e438944bfb?versionId=bFoq0gDTVmAcdFifbq_.XkMjCzbfCtfT&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEHkaCXVzLWVhc3QtMiJHMEUCIQC5YMt001jP%2FJVPYpLBD6o5GnlSo6WzR2f9l3A%2BurLvyQIgWe%2FT4QqLLo9DucGkEgsKoUZLSDxzGBqSAR09ov67TJcqkgIIsv%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAFGgwxMDQyNDYwMTc4NjUiDKTSGvV4yktezNIYDirmAUOUeUzsorMSuyPr%2BstSL7Lpzpr7%2F%2FZgi2VQfRU5qK%2B9ZhMBSjFwFKCcZfH54oVESRQFOes0iNatejDof0wOf57UbBMemGGskfb4FozrsvzkMr%2Bn07X%2BKhhYSKFRLslNM%2Fk3LAFKhWnh57TW4Lwfa47c%2BF9kcdPvXFds9%2BFBsv12j1Rfhu%2BBARCM8lVPtcHdNk6ADrP%2BBbL89IBOnCTSdVs1XCJLHe4sRqnZM3zPDqNNS2pISEAUqokEMa1MVqEEdqsYh8rDZBGs%2FobAEgfjC%2B%2B1zQorNYedx4gIDHe%2FiWF2VIBui3RwMInD2sQGOo8BrLBCXLRFHhFuykBcoLJDM%2FxdpJzZPsa%2BrTlb4ABq8awLdN8DOhLoz%2Fuf6QipQSXgnc24N%2FdQhmkneONli0NkUWNBpWtnJjxred3NYfi2KvH72FHjvwRAL0bG1ykNDeKHwzhvXNMaa7CF%2BARiLmHkmzdx1RBmVvKtrcTpgyPs5THKaYs92HqG5yA06iarA%2B8%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20250809T104652Z&X-Amz-SignedHeaders=host&X-Amz-Expires=600&X-Amz-Credential=ASIARQRML75ER3AUQEMC%2F20250809%2Fus-east-2%2Fs3%2Faws4_request&X-Amz-Signature=6c541432d4365b2a1b7a88a3ff2d0826e0889b60f696fafe44016b866a9fd50e"
+    }
+}

@@ -1,0 +1,87 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-0900022cbfa9e2a96",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "testPPU"
+                }
+            ],
+            "VpcId": "vpc-d2a9d9bb",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-2:154948530138:security-group/sg-0900022cbfa9e2a96",
+            "OwnerId": "154948530138",
+            "GroupName": "rds-launch-wizard",
+            "Description": "Created from the RDS Management Console: 2018/12/15 21:14:52",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 5432,
+                    "ToPort": 5432,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "postrgesSQL for gitty home",
+                            "CidrIp": "195.60.232.215/32"
+                        },
+                        {
+                            "Description": "postgresql bwDevTeam",
+                            "CidrIp": "37.142.41.17/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                },
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 22,
+                    "ToPort": 22,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "ssh for gitty home",
+                            "CidrIp": "195.60.232.215/32"
+                        },
+                        {
+                            "Description": "ssh for bwDevTeam",
+                            "CidrIp": "37.142.41.17/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                },
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 443,
+                    "ToPort": 443,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "https for gitty home",
+                            "CidrIp": "195.60.232.215/32"
+                        },
+                        {
+                            "Description": "https for bwDevTeam",
+                            "CidrIp": "37.142.41.17/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        }
+    ]
+}

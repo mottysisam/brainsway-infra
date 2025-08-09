@@ -1,0 +1,63 @@
+{
+    "DBClusters": [
+        {
+            "AllocatedStorage": 1,
+            "AvailabilityZones": [
+                "us-east-2b",
+                "us-east-2c",
+                "us-east-2a"
+            ],
+            "BackupRetentionPeriod": 7,
+            "DBClusterIdentifier": "insight-production-db",
+            "DBClusterParameterGroup": "default.aurora-postgresql13",
+            "DBSubnetGroup": "default",
+            "Status": "available",
+            "EarliestRestorableTime": "2025-08-02T04:00:18.362000+00:00",
+            "Endpoint": "insight-production-db.cluster-c0axqhuicdnc.us-east-2.rds.amazonaws.com",
+            "MultiAZ": false,
+            "Engine": "aurora-postgresql",
+            "EngineVersion": "13.12",
+            "LatestRestorableTime": "2025-08-09T10:42:23.101000+00:00",
+            "Port": 5432,
+            "MasterUsername": "Nimbun24",
+            "PreferredBackupWindow": "03:50-04:20",
+            "PreferredMaintenanceWindow": "sat:04:37-sat:05:07",
+            "ReadReplicaIdentifiers": [],
+            "DBClusterMembers": [],
+            "VpcSecurityGroups": [
+                {
+                    "VpcSecurityGroupId": "sg-0c0a0065",
+                    "Status": "active"
+                }
+            ],
+            "HostedZoneId": "Z2XHWR1WZ565X2",
+            "StorageEncrypted": true,
+            "KmsKeyId": "arn:aws:kms:us-east-2:154948530138:key/e392ccba-4ba3-452e-b0e0-135f8445ba5d",
+            "DbClusterResourceId": "cluster-4ASGQHSC435TLSPMNR7ONFNNQU",
+            "DBClusterArn": "arn:aws:rds:us-east-2:154948530138:cluster:insight-production-db",
+            "AssociatedRoles": [],
+            "IAMDatabaseAuthenticationEnabled": false,
+            "ClusterCreateTime": "2024-01-18T13:47:29.958000+00:00",
+            "Capacity": 2,
+            "EngineMode": "serverless",
+            "ScalingConfigurationInfo": {
+                "MinCapacity": 2,
+                "MaxCapacity": 8,
+                "AutoPause": false,
+                "SecondsUntilAutoPause": 300,
+                "TimeoutAction": "RollbackCapacityChange",
+                "SecondsBeforeTimeout": 300
+            },
+            "DeletionProtection": true,
+            "HttpEndpointEnabled": false,
+            "ActivityStreamStatus": "stopped",
+            "CopyTagsToSnapshot": true,
+            "CrossAccountClone": false,
+            "DomainMemberships": [],
+            "TagList": [],
+            "AutoMinorVersionUpgrade": true,
+            "DatabaseInsightsMode": "standard",
+            "NetworkType": "IPV4"
+        }
+    ]
+}
