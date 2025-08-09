@@ -2,8 +2,8 @@ include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/lambda" }
 inputs = {
   "functions": {
-    "insert-ppu-data-staging": {
-      "role": "arn:aws:iam::574210586915:role/lambda-vpc-role",
+    "insert-ppu-data-dev": {
+      "role": "arn:aws:iam::824357028182:role/lambda-vpc-role",
       "handler": "insertPPUData.handler",
       "runtime": "python3.9",
       "timeout": 6,
@@ -15,16 +15,16 @@ inputs = {
         "arn:aws:lambda:us-east-2:770693421928:layer:Klayers-p39-psycopg2-binary:1"
       ],
       "environment": {
-        "ENVIRONMENT": "staging",
-        "DYNAMODB_TABLE": "event_log-staging"
+        "ENVIRONMENT": "dev",
+        "DYNAMODB_TABLE": "event_log-dev"
       },
       "filename": "placeholder.zip",
       "tags": {
-        "Environment": "staging"
+        "Environment": "dev"
       }
     },
-    "generatePresignedUrl-staging": {
-      "role": "arn:aws:iam::574210586915:role/lambda_s3_execution",
+    "generatePresignedUrl-dev": {
+      "role": "arn:aws:iam::824357028182:role/lambda_s3_execution",
       "handler": "lambda_function.lambda_handler",
       "runtime": "python3.9",
       "timeout": 10,
@@ -34,15 +34,15 @@ inputs = {
       ],
       "layers": null,
       "environment": {
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "dev"
       },
       "filename": "placeholder.zip",
       "tags": {
-        "Environment": "staging"
+        "Environment": "dev"
       }
     },
-    "presignedUrlForS3Upload-staging": {
-      "role": "arn:aws:iam::574210586915:role/lambda_s3_execution",
+    "presignedUrlForS3Upload-dev": {
+      "role": "arn:aws:iam::824357028182:role/lambda_s3_execution",
       "handler": "lambda_function.lambda_handler",
       "runtime": "python3.9",
       "timeout": 10,
@@ -52,15 +52,15 @@ inputs = {
       ],
       "layers": null,
       "environment": {
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "dev"
       },
       "filename": "placeholder.zip",
       "tags": {
-        "Environment": "staging"
+        "Environment": "dev"
       }
     },
-    "sync_clock-staging": {
-      "role": "arn:aws:iam::574210586915:role/lambda-vpc-role",
+    "sync_clock-dev": {
+      "role": "arn:aws:iam::824357028182:role/lambda-vpc-role",
       "handler": "lambda_function.lambda_handler",
       "runtime": "python3.12",
       "timeout": 3,
@@ -70,15 +70,15 @@ inputs = {
       ],
       "layers": null,
       "environment": {
-        "ENVIRONMENT": "staging"
+        "ENVIRONMENT": "dev"
       },
       "filename": "placeholder.zip",
       "tags": {
-        "Environment": "staging"
+        "Environment": "dev"
       }
     },
-    "softwareUpdateHandler-staging": {
-      "role": "arn:aws:iam::574210586915:role/sf_update_lambda_role",
+    "softwareUpdateHandler-dev": {
+      "role": "arn:aws:iam::824357028182:role/sf_update_lambda_role",
       "handler": "lambda_function.lambda_handler",
       "runtime": "python3.9",
       "timeout": 10,
@@ -88,17 +88,17 @@ inputs = {
       ],
       "layers": null,
       "environment": {
-        "ENVIRONMENT": "staging",
-        "DYNAMODB_TABLE": "sw_update-staging"
+        "ENVIRONMENT": "dev",
+        "DYNAMODB_TABLE": "sw_update-dev"
       },
       "filename": "placeholder.zip",
       "tags": {
-        "Environment": "staging"
+        "Environment": "dev"
       }
     }
   },
   "function_urls": [],
   "aliases": [
-    "insert-ppu-data-staging:latest"
+    "insert-ppu-data-dev:latest"
   ]
 }
