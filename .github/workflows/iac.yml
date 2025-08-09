@@ -104,3 +104,4 @@ jobs:
         uses: diggerhq/digger@v0.4.15
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
