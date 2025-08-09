@@ -60,9 +60,15 @@ resource "aws_db_instance" "this" {
   lifecycle { ignore_changes = all }
 }
 
-# Generate random passwords for database instances
+# Generate random passwords for database instances that meet AWS requirements
 resource "random_password" "db_password" {
   for_each = var.instances
   length   = 16
   special  = true
+  # AWS RDS password requirements: must not contain /, ", @, space, or be all numbers
+  override_special = "!#$%&*+-=?^_`{|}~"
+  min_lower        = 1
+  min_upper        = 1
+  min_numeric      = 1
+  min_special      = 1
 }
