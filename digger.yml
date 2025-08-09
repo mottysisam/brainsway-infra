@@ -2,12 +2,24 @@ version: 1
 collect_usage_data: false
 auto_merge: false
 projects:
-  - name: live
-    dir: infra/live
+  - name: dev
+    dir: infra/live/dev
     terragrunt: true
     workflow: terragrunt-runall
     include_patterns:
-      - "infra/live/**"
+      - "infra/live/dev/**"
+  - name: staging
+    dir: infra/live/staging
+    terragrunt: true
+    workflow: terragrunt-runall
+    include_patterns:
+      - "infra/live/staging/**"
+  - name: prod
+    dir: infra/live/prod
+    terragrunt: true
+    workflow: terragrunt-runall
+    include_patterns:
+      - "infra/live/prod/**"
 workflows:
   terragrunt-runall:
     plan:
