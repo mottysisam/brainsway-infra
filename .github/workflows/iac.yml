@@ -153,13 +153,10 @@ jobs:
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
 
       - name: Run Digger for ${{ matrix.environment }}
-        uses: diggerhq/digger@v0.3.20
-        with:
-          no-backend: true
-          setup-aws: false
-          setup-terraform: false
-          setup-terragrunt: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-          DIGGER_PROJECT: ${{ matrix.environment }}
+        working-directory: infra/live/${{ matrix.environment }}
+        run: |
+          echo "Running Terragrunt for ${{ matrix.environment }} environment"
+          echo "Working directory: $(pwd)"
+          echo "Available modules:"
+          find . -name "terragrunt.hcl" -type f | head -10
+          terragrunt run-all plan -no-color -parallelism 4
