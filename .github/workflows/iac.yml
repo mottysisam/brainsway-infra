@@ -1,0 +1,76 @@
+name: iac
+concurrency:
+  group: iac-${{ github.ref }}
+  cancel-in-progress: false
+on:
+  pull_request:
+    paths: [ 'infra/live/**' ]
+  issue_comment:
+    types: [created]
+jobs:
+  digger:
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect environment (dev/staging/prod)
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+            git fetch --quiet origin "${{ github.base_ref }}"
+            CHANGED=$(git diff --name-only "$BASE"...HEAD | grep '^infra/live/' || true)
+          else
+            PRNUM="${{ github.event.issue.number }}"
+            REPO="${{ github.repository }}"
+            CHANGED=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=200" \
+              | jq -r '.[].filename' | grep '^infra/live/' || true)
+          fi
+          ENV="dev"
+          echo "$CHANGED" | grep -q '/prod/' && ENV="prod"
+          echo "$CHANGED" | grep -q '/staging/' && ENV="staging"
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+          echo "$CHANGED"
+
+      - name: Guard prod applies (prod is READ-ONLY)
+        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && steps.detect.outputs.env == 'prod' }}
+        run: |
+          echo 'Prod is READ-ONLY in this repo. /digger apply is blocked.' >&2
+          exit 1
+
+      - name: Select AWS role for env
+        id: role
+        run: |
+          case "${{ steps.detect.outputs.env }}" in
+            dev) echo "arn=${{ secrets.AWS_ROLE_IAC_DEV }}" >> $GITHUB_OUTPUT ;;
+            staging) echo "arn=${{ secrets.AWS_ROLE_IAC_STAGING }}" >> $GITHUB_OUTPUT ;;
+            prod) echo "arn=${{ secrets.AWS_ROLE_IAC_PROD }}" >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Configure AWS creds via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.role.outputs.arn }}
+          aws-region: us-east-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Install Terragrunt
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+
+      - name: Digger
+        uses: diggerhq/digger@v0
