@@ -77,14 +77,8 @@ jobs:
           
           # Convert to JSON array for matrix
           if [ -n "$ENVIRONMENTS" ]; then
-            # Create JSON array from comma-separated environments
-            ENV_ARRAY="["
-            IFS=',' read -ra ENV_LIST <<< "$ENVIRONMENTS"
-            for i in "${!ENV_LIST[@]}"; do
-              if [ $i -gt 0 ]; then ENV_ARRAY="$ENV_ARRAY,"; fi
-              ENV_ARRAY="$ENV_ARRAY\"${ENV_LIST[$i]}\""
-            done
-            ENV_ARRAY="$ENV_ARRAY]"
+            # Create JSON array using printf and jq for reliability
+            ENV_ARRAY=$(printf '%s\n' ${ENVIRONMENTS//,/ } | jq -R . | jq -s .)
           else
             ENV_ARRAY='[]'
           fi
