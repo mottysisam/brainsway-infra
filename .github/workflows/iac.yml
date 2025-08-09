@@ -77,7 +77,7 @@ jobs:
           
           # Convert to JSON array for matrix
           if [ -n "$ENVIRONMENTS" ]; then
-            ENV_ARRAY=$(echo "$ENVIRONMENTS" | tr ',' '\n' | jq -R . | jq -s .)
+            ENV_ARRAY=$(printf '%s\n' ${ENVIRONMENTS//,/ } | jq -R . | jq -s .)
           else
             ENV_ARRAY='[]'
           fi
