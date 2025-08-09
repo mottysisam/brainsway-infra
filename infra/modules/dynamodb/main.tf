@@ -20,14 +20,14 @@ resource "aws_dynamodb_table" "this" {
       type = attribute.value
     }
   }
+  dynamic "ttl" {
+    for_each = try(each.value.ttl_attribute, null) != null ? [1] : []
+    content {
+      attribute_name = each.value.ttl_attribute
+      enabled        = try(each.value.ttl_enabled, true)
+    }
+  }
   stream_enabled = try(each.value.stream_enabled, null)
   tags           = try(each.value.tags, {})
   lifecycle { ignore_changes = all }
-}
-
-resource "aws_dynamodb_table_ttl" "this" {
-  for_each       = { for k, v in var.tables : k => v if try(v.ttl_attribute, null) != null }
-  table_name     = aws_dynamodb_table.this[each.key].name
-  attribute_name = each.value.ttl_attribute
-  enabled        = try(each.value.ttl_enabled, true)
 }
