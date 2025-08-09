@@ -14,7 +14,6 @@ inputs = {
       "multi_az"           = false
       "publicly_accessible" = false
       "vpc_security_group_ids" = ["sg-08a07ec246fd4f2b4"]  # development-database-tier-sg
-      "db_subnet_group_name" = "development-default"
       "skip_final_snapshot" = true
       "tags" = {
         "Name" = "bwppudb-dev"
