@@ -1,5 +1,6 @@
 version: 1
 collect_usage_data: false
+auto_merge: false
 projects:
   - name: live
     dir: infra/live

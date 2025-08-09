@@ -107,3 +107,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_CONTEXT: ${{ toJSON(github) }}
+          DIGGER_TOKEN: "dummy-token"
