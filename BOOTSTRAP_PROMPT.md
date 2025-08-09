@@ -2,6 +2,10 @@
 
 This file is the **one‑shot prompt** you paste into **Claude Code** to scaffold the repo `github.com/mottysisam/brainsway-infra` for **Terragrunt + Digger on GitHub Actions**. It creates the skeleton, adds CI, and writes the bootstrap Terraform for state + OIDC roles. Keep **CLAUDE.md (Memory)** minimal—this file is only for initialization and runbooks.
 
+---
+
+## 👉 Copy everything inside the block below into Claude Code
+
 ````
 You are configuring the GitHub repo: https://github.com/mottysisam/brainsway-infra
 Goal: scaffold Terragrunt (live) + Digger CI, and add bootstrap Terraform for remote state and GitHub OIDC IAM roles. Produce a PR named "infra/bootstrap". Treat any error as a blocker. Use concise, descriptive commit messages.

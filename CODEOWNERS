@@ -1,0 +1,15 @@
+# Global fallback
+* @mottysisam
+
+# Production infrastructure requires mandatory review
+infra/live/prod/** @mottysisam
+
+# All live infrastructure changes need review
+infra/live/** @mottysisam
+
+# Bootstrap changes affect all environments
+bootstrap/** @mottysisam
+
+# CI/CD changes affect security
+.github/workflows/** @mottysisam
+digger.yml @mottysisam

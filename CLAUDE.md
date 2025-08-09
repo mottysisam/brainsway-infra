@@ -14,7 +14,7 @@
 
 1. **Do not** run raw `terraform` in live stacks. Use `terragrunt` locally; **Digger** runs in CI.
 2. **Every change** goes through a PR. Apply happens via a PR comment (`/digger apply`) after approvals.
-3. **Production is sacred.** Extra approvals + labels required. No surprise destroys.
+3. **Production is sacred.** Extra approvals + `approved-prod` label required. No surprise destroys.
 
 ---
 
@@ -64,7 +64,7 @@ digger.yml                  # Digger project/workflow definition
 * **Account gate:** A Terragrunt `before_hook` compares `aws sts get-caller-identity` to the expected `aws_account` from `env.hcl` and **fails hard** on mismatch.
 * **Prod gating:** Applies to `infra/live/prod/**` require:
 
-  * GitHub label \`\` *and* GitHub **Environment: production** approval.
+  * GitHub label `approved-prod` *and* GitHub **Environment: production** approval.
 * **No blind destroys:** Reject plans with destroys in prod unless explicitly approved by owners.
 * **Least privilege:** No broad IAM (e.g., `AdministratorAccess`) attached to prod CI role.
 * **Tags required:** Modules must surface a `tags` input and merge default tags.
@@ -124,7 +124,7 @@ digger.yml                  # Digger project/workflow definition
 aws sts get-caller-identity --profile bwamazondev
 
 # From a child stack dir
-tterragrunt plan
+terragrunt plan
 terragrunt apply
 ```
 
