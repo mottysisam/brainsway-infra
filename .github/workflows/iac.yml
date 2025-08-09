@@ -100,11 +100,100 @@ jobs:
           curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
             -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
 
-      - name: Digger
-        uses: diggerhq/digger@v0.4.15
+      - name: Terragrunt Plan
+        id: plan
+        working-directory: infra/live
+        run: |
+          set -euo pipefail
+          echo "## 🏗️ Terraform Plan for ${{ steps.detect.outputs.env }} environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          terragrunt run-all plan -no-color -parallelism 4 2>&1 | tee plan.log
+          
+          # Format output for PR comment
+          {
+            echo "## 🏗️ Terraform Plan for \`${{ steps.detect.outputs.env }}\` environment"
+            echo ""
+            echo "<details><summary>📋 Show Plan Output</summary>"
+            echo ""
+            echo '```'
+            cat plan.log
+            echo '```'
+            echo "</details>"
+            echo ""
+            if [ "${{ steps.detect.outputs.env }}" = "prod" ]; then
+              echo "⚠️ **Production is READ-ONLY** - Only plans and imports are allowed"
+            else
+              echo "✅ To apply these changes, comment: \`/apply\`"
+            fi
+          } > plan_comment.md
+
+      - name: Comment Plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
         with:
-          disable-locking: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-          DIGGER_TOKEN: "dummy-token"
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('infra/live/plan_comment.md', 'utf8');
+            
+            // Find existing plan comment to update
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.body.includes('🏗️ Terraform Plan for'));
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      - name: Apply Changes
+        if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/apply')
+        working-directory: infra/live
+        run: |
+          echo "## 🚀 Applying Terraform Changes" >> $GITHUB_STEP_SUMMARY
+          terragrunt run-all apply -auto-approve -no-color -parallelism 2 2>&1 | tee apply.log
+          
+          # Comment apply results
+          {
+            echo "## 🚀 Terraform Apply Results for \`${{ steps.detect.outputs.env }}\` environment"
+            echo ""
+            echo "<details><summary>📋 Show Apply Output</summary>"
+            echo ""
+            echo '```'
+            cat apply.log
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "✅ Changes have been applied successfully!"
+          } > apply_comment.md
+
+      - name: Comment Apply Results
+        if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/apply')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('infra/live/apply_comment.md', 'utf8');
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
