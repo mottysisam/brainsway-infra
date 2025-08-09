@@ -10,6 +10,7 @@ inputs = {
       "storage_type"        = "gp2"
       "db_name"            = "bwppudb"
       "username"           = "postgres"
+      "password"           = "TempPassword123"  # Static password for debugging
       "multi_az"           = false
       "publicly_accessible" = false
       "vpc_security_group_ids" = ["sg-00edb49b43a6ea88c"]
