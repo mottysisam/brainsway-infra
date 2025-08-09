@@ -56,25 +56,43 @@ resource "aws_db_instance" "this" {
   vpc_security_group_ids              = try(each.value.vpc_security_group_ids, null)
   iam_database_authentication_enabled = try(each.value.iam_database_authentication_enabled, null)
   skip_final_snapshot                 = true
-  # Import-first posture
-  lifecycle { ignore_changes = all }
+  # Import-first posture - but allow password changes for initial creation
+  lifecycle { 
+    ignore_changes = [
+      # Allow password to be managed for initial creation
+      # password,
+      allocated_storage,
+      engine_version,
+      instance_class,
+      publicly_accessible,
+      multi_az,
+      performance_insights_enabled,
+      vpc_security_group_ids,
+      iam_database_authentication_enabled
+    ]
+  }
 }
 
 # Generate random passwords for database instances that meet AWS RDS requirements
-# AWS RDS password requirements are very strict - using alphanumeric only for reliability
-# Requirements:
+# AWS RDS password requirements for PostgreSQL are extremely strict:
 # - 8-128 characters long
 # - Must contain uppercase letters, lowercase letters, and numbers
-# - Cannot contain: / (slash), " (double quote), @ (at sign), space, ' (single quote), ` (backtick)
-# - Some special characters may be rejected depending on the database engine
+# - Cannot contain: / (slash), " (double quote), @ (at sign), space, ' (single quote), ` (backtick), \ (backslash)
+# - PostgreSQL has additional restrictions on certain characters
+# Using only letters and numbers with balanced distribution for maximum compatibility
 resource "random_password" "db_password" {
   for_each = var.instances
-  length   = 20
-  special  = false  # Disable special characters to avoid AWS RDS validation issues
+  length   = 16  # Reduced length to minimize validation issues
+  special  = false  # Absolutely no special characters
   upper    = true
   lower    = true
   numeric  = true
-  min_lower   = 4
-  min_upper   = 4
-  min_numeric = 4
+  min_lower   = 3
+  min_upper   = 3
+  min_numeric = 3
+  
+  # Keepers to force regeneration if needed
+  keepers = {
+    db_name = each.key
+  }
 }
