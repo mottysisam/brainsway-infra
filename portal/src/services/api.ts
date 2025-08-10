@@ -57,56 +57,93 @@ export class ApiService {
     : 'https://mottysisam.github.io/brainsway-infra'
 
   static async getReports(filters?: FilterOptions): Promise<DeploymentReport[]> {
-    // In development, return mock data
-    if (import.meta.env.DEV) {
-      let filteredReports = [...mockReports]
-      
-      if (filters) {
-        if (filters.environment) {
-          filteredReports = filteredReports.filter(r => r.environment === filters.environment)
+    let reports: DeploymentReport[] = []
+    
+    console.log('🚀 ApiService.getReports called - Environment:', {
+      isDev: import.meta.env.DEV,
+      mode: import.meta.env.MODE,
+      baseUrl: this.baseUrl,
+      mockReportsLength: mockReports.length
+    })
+    
+    // In production, try to fetch real reports first
+    if (!import.meta.env.DEV) {
+      try {
+        const manifestUrl = `${this.baseUrl}/reports/manifest.json`
+        console.log('🔍 Production mode: Fetching reports from:', manifestUrl)
+        const response = await fetch(manifestUrl)
+        
+        console.log('📡 Fetch response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          url: response.url
+        })
+        
+        if (response.ok) {
+          const manifest = await response.json()
+          reports = manifest.reports || []
+          console.log('✅ Fetched real reports from manifest:', reports.length)
+        } else {
+          console.log('⚠️ Manifest not found (status:', response.status, '), falling back to mock data')
+          reports = [...mockReports]
+          console.log('📋 Using mock data:', reports.length, 'reports')
         }
-        if (filters.status) {
-          filteredReports = filteredReports.filter(r => r.status === filters.status)
-        }
-        if (filters.author) {
-          filteredReports = filteredReports.filter(r => 
-            r.author.toLowerCase().includes(filters.author!.toLowerCase())
-          )
-        }
-        if (filters.branch) {
-          filteredReports = filteredReports.filter(r => 
-            r.branch.toLowerCase().includes(filters.branch!.toLowerCase())
-          )
-        }
+      } catch (error) {
+        console.error('❌ Failed to fetch reports, using mock data:', error)
+        reports = [...mockReports]
+        console.log('📋 Fallback mock data loaded:', reports.length, 'reports')
       }
-      
-      return filteredReports.sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )
+    } else {
+      // Development: always use mock data
+      console.log('🛠️ Development mode: using mock data')
+      reports = [...mockReports]
     }
-
-    // Production: fetch from GitHub Pages manifest
-    try {
-      const response = await fetch(`${this.baseUrl}/reports/manifest.json`)
-      const manifest = await response.json()
-      return manifest.reports || []
-    } catch (error) {
-      console.error('Failed to fetch reports:', error)
-      return []
+    
+    console.log('📊 Final reports before filtering:', reports.length, reports.map(r => ({ id: r.id, env: r.environment, status: r.status })))
+    
+    // Apply filters if provided
+    if (filters) {
+      if (filters.environment) {
+        reports = reports.filter(r => r.environment === filters.environment)
+      }
+      if (filters.status) {
+        reports = reports.filter(r => r.status === filters.status)
+      }
+      if (filters.author) {
+        reports = reports.filter(r => 
+          r.author.toLowerCase().includes(filters.author!.toLowerCase())
+        )
+      }
+      if (filters.branch) {
+        reports = reports.filter(r => 
+          r.branch.toLowerCase().includes(filters.branch!.toLowerCase())
+        )
+      }
     }
+    
+    const sortedReports = reports.sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    )
+    
+    console.log('🎯 ApiService.getReports final result:', sortedReports.length, 'reports')
+    return sortedReports
   }
 
   static async getReport(id: string): Promise<DeploymentReport | null> {
-    if (import.meta.env.DEV) {
-      return mockReports.find(r => r.id === id) || null
+    // Try to fetch from production first, fallback to mock data
+    if (!import.meta.env.DEV) {
+      try {
+        const response = await fetch(`${this.baseUrl}/reports/${id}.json`)
+        if (response.ok) {
+          return await response.json()
+        }
+      } catch (error) {
+        console.error(`Failed to fetch report ${id}:`, error)
+      }
     }
-
-    try {
-      const response = await fetch(`${this.baseUrl}/reports/${id}.json`)
-      return await response.json()
-    } catch (error) {
-      console.error(`Failed to fetch report ${id}:`, error)
-      return null
-    }
+    
+    // Fallback to mock data (both in development and when production fetch fails)
+    return mockReports.find(r => r.id === id) || null
   }
 }

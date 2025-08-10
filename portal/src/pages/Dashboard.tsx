@@ -19,18 +19,22 @@ export function Dashboard() {
     try {
       setLoading(true)
       setError(null)
+      console.log('📊 Dashboard: Loading reports...')
       const data = await ApiService.getReports()
+      console.log('📊 Dashboard: Loaded reports:', data.length, data)
       setReports(data)
       calculateStats(data)
     } catch (err) {
       setError('Failed to load deployment reports')
-      console.error('Error loading reports:', err)
+      console.error('❌ Dashboard: Error loading reports:', err)
     } finally {
       setLoading(false)
     }
   }
 
   const calculateStats = (reportData: DeploymentReport[]) => {
+    console.log('📊 Dashboard: Calculating stats for', reportData.length, 'reports')
+    
     const environments: ('dev' | 'staging' | 'prod')[] = ['dev', 'staging', 'prod']
     const environmentStats: EnvironmentStats[] = environments.map(env => {
       const envReports = reportData.filter(r => r.environment === env)
@@ -40,15 +44,19 @@ export function Dashboard() {
         ? envReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp
         : undefined
 
-      return {
+      const envStats = {
         environment: env,
         totalDeployments: envReports.length,
         successRate: envReports.length > 0 ? successful / envReports.length : 0,
         averageDuration: envReports.length > 0 ? totalDuration / envReports.length : 0,
         lastDeployment
       }
+      
+      console.log(`📊 Stats for ${env}:`, envStats)
+      return envStats
     })
 
+    console.log('📊 Final environment stats:', environmentStats)
     setStats(environmentStats)
   }
 
