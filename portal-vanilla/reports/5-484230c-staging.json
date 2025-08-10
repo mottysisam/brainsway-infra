@@ -1,0 +1,15 @@
+{
+  "id": "5-484230c-staging",
+  "timestamp": "2025-08-10T18:52:12Z",
+  "environment": "staging",
+  "branch": "HEAD",
+  "commit": "484230c",
+  "status": "success",
+  "duration": 300,
+  "changes": [],
+  "author": "Motty Sisam",
+  "message": "Merge 6d88c867b41d27232a5a1519d31f54303f928792 into fb47c456bdcb5e541523939423da1c71f9d602bf",
+  "url": "https://github.com/mottysisam/brainsway-infra/actions/runs/16865180645",
+  "terragruntOutput": "\n",
+  "diggerComment": ""
+}
