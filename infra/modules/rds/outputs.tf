@@ -57,3 +57,12 @@ output "db_passwords" {
   }
   sensitive = true
 }
+
+# Cluster Passwords (Sensitive)
+output "cluster_passwords" {
+  description = "Generated cluster passwords"
+  value = {
+    for k, v in random_password.cluster_password : k => v.result
+  }
+  sensitive = true
+}

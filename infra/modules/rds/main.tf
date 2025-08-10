@@ -26,6 +26,8 @@ resource "aws_rds_cluster" "this" {
   engine_version                      = try(each.value.engine_version, null)
   engine_mode                         = try(each.value.engine_mode, null)
   database_name                       = try(each.value.database_name, null)
+  master_username                     = try(each.value.master_username, "postgres")
+  master_password                     = try(each.value.master_password, random_password.cluster_password[each.key].result)
   db_subnet_group_name                = try(each.value.db_subnet_group_name, null)
   storage_encrypted                   = try(each.value.storage_encrypted, null)
   kms_key_id                          = try(each.value.kms_key_id, null)
@@ -94,5 +96,23 @@ resource "random_password" "db_password" {
   # Keepers to force regeneration if needed
   keepers = {
     db_name = each.key
+  }
+}
+
+# Generate random passwords for Aurora clusters using same requirements
+resource "random_password" "cluster_password" {
+  for_each = var.clusters
+  length   = 16  # Same requirements as RDS instances
+  special  = false  # Absolutely no special characters
+  upper    = true
+  lower    = true
+  numeric  = true
+  min_lower   = 3
+  min_upper   = 3
+  min_numeric = 3
+  
+  # Keepers to force regeneration if needed
+  keepers = {
+    cluster_name = each.key
   }
 }
