@@ -1,0 +1,38 @@
+{
+  "metadata": {
+    "environment": "prod",
+    "region": "us-east-2",
+    "mode": "deployment",
+    "scan_time": "2025-08-09T20:24:47.3NZ",
+    "config_root": "infra/live"
+  },
+  "expected_resources": {
+    "rds": {
+      "instances": [],
+      "clusters": []
+    },
+    "ec2": {
+      "instances": []
+    },
+    "lambda": {
+      "functions": []
+    },
+    "dynamodb": {
+      "tables": []
+    },
+    "s3": {
+      "buckets": []
+    },
+    "apigateway": {
+      "rest_apis": []
+    },
+    "iam": {
+      "roles": [],
+      "policies": []
+    }
+  },
+  "summary": {
+    "total_expected": 0,
+    "by_service": {}
+  }
+}
