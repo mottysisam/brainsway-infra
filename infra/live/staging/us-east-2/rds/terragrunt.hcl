@@ -23,38 +23,36 @@ inputs = {
   }
   
   "clusters" = {
-    "bwcluster1-staging" = {
+    "db-aurora-1-staging" = {
       "engine"              = "aurora-postgresql"
-      "engine_version"      = "15.4"
-      "engine_mode"         = "provisioned"
-      "database_name"       = "bwcluster1"
+      "engine_version"      = "13.12"
+      "engine_mode"         = "serverless"
+      "database_name"       = "dbauroradb"
       "master_username"     = "postgres"
       "master_password"     = "TempPassword123"  # Static password for staging
       "deletion_protection" = false
       "vpc_security_group_ids" = ["sg-0aa2488e7244be01b"]
       "backup_retention_period" = 7
       "storage_encrypted"   = true
-      "enable_http_endpoint" = true
       "tags" = {
-        "Name" = "bwcluster1-staging"
+        "Name" = "db-aurora-1-staging"
         "Environment" = "staging"
         "Type" = "Aurora Serverless"
       }
     }
-    "bwcluster2-staging" = {
+    "insight-production-db-staging" = {
       "engine"              = "aurora-postgresql"
-      "engine_version"      = "15.4"
-      "engine_mode"         = "provisioned"
-      "database_name"       = "bwcluster2"
+      "engine_version"      = "13.12"
+      "engine_mode"         = "serverless"
+      "database_name"       = "insightproductiondb"
       "master_username"     = "postgres"
       "master_password"     = "TempPassword123"  # Static password for staging
       "deletion_protection" = false
       "vpc_security_group_ids" = ["sg-0aa2488e7244be01b"]
       "backup_retention_period" = 7
       "storage_encrypted"   = true
-      "enable_http_endpoint" = true
       "tags" = {
-        "Name" = "bwcluster2-staging"
+        "Name" = "insight-production-db-staging"
         "Environment" = "staging"
         "Type" = "Aurora Serverless"
       }

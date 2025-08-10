@@ -23,38 +23,36 @@ inputs = {
   }
   
   "clusters" = {
-    "bwcluster1-dev" = {
+    "db-aurora-1-dev" = {
       "engine"              = "aurora-postgresql"
-      "engine_version"      = "15.4"
-      "engine_mode"         = "provisioned"
-      "database_name"       = "bwcluster1"
+      "engine_version"      = "13.12"
+      "engine_mode"         = "serverless"
+      "database_name"       = "dbauroradb"
       "master_username"     = "postgres"
       "master_password"     = "TempPassword123"  # Static password for dev
       "deletion_protection" = false
       "vpc_security_group_ids" = ["sg-0cb4d7360eb9f9b4a"]  # Same VPC as RDS instance
       "backup_retention_period" = 7
       "storage_encrypted"   = true
-      "enable_http_endpoint" = true
       "tags" = {
-        "Name" = "bwcluster1-dev"
+        "Name" = "db-aurora-1-dev"
         "Environment" = "dev"
         "Type" = "Aurora Serverless"
       }
     }
-    "bwcluster2-dev" = {
+    "insight-production-db-dev" = {
       "engine"              = "aurora-postgresql"
-      "engine_version"      = "15.4"
-      "engine_mode"         = "provisioned"
-      "database_name"       = "bwcluster2"
+      "engine_version"      = "13.12"
+      "engine_mode"         = "serverless"
+      "database_name"       = "insightproductiondb"
       "master_username"     = "postgres"
       "master_password"     = "TempPassword123"  # Static password for dev
       "deletion_protection" = false
       "vpc_security_group_ids" = ["sg-0cb4d7360eb9f9b4a"]  # Same VPC as RDS instance
       "backup_retention_period" = 7
       "storage_encrypted"   = true
-      "enable_http_endpoint" = true
       "tags" = {
-        "Name" = "bwcluster2-dev"
+        "Name" = "insight-production-db-dev"
         "Environment" = "dev"
         "Type" = "Aurora Serverless"
       }
