@@ -131,18 +131,34 @@ if [[ ! -f "$MANIFEST_FILE" ]]; then
     echo '{"reports": [], "lastUpdated": ""}' > "$MANIFEST_FILE"
 fi
 
-# Read current manifest and add new report
-jq --arg report_file "${REPORT_ID}.json" --arg timestamp "$TIMESTAMP" '
-  .reports |= (map(select(.id != $report_file)) + [{
-    "id": $report_file,
-    "timestamp": $timestamp,
-    "environment": "'$ENVIRONMENT'",
-    "status": "'$STATUS'",
-    "file": $report_file
-  }])
-  | .reports |= sort_by(.timestamp) | reverse
-  | .lastUpdated = $timestamp
-' "$MANIFEST_FILE" > "$MANIFEST_TEMP"
+# Create new report entry
+cat > "$MANIFEST_TEMP" << EOF
+{
+  "reports": [
+    {
+      "id": "${REPORT_ID}.json",
+      "timestamp": "$TIMESTAMP",
+      "environment": "$ENVIRONMENT", 
+      "status": "$STATUS",
+      "file": "${REPORT_ID}.json"
+    }
+  ],
+  "lastUpdated": "$TIMESTAMP"
+}
+EOF
+
+# If manifest exists and has existing reports, merge them (excluding duplicates)
+if [[ -f "$MANIFEST_FILE" ]] && [[ -s "$MANIFEST_FILE" ]]; then
+    # Get all existing reports
+    ALL_EXISTING=$(jq '.reports // []' "$MANIFEST_FILE" 2>/dev/null || echo "[]")
+    
+    # Merge with new report, remove duplicates by id, and sort by timestamp (newest first)
+    jq --arg timestamp "$TIMESTAMP" --argjson existing "$ALL_EXISTING" \
+        '.reports = ($existing + .reports) | .reports |= unique_by(.id) | .reports |= sort_by(.timestamp) | .reports |= reverse | .lastUpdated = $timestamp' \
+        "$MANIFEST_TEMP" > "${MANIFEST_TEMP}.merged"
+    
+    mv "${MANIFEST_TEMP}.merged" "$MANIFEST_TEMP"
+fi
 
 mv "$MANIFEST_TEMP" "$MANIFEST_FILE"
 

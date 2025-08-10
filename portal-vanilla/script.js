@@ -1,53 +1,4 @@
-// Mock data for development
-const mockReports = [
-    {
-        id: '1',
-        timestamp: '2025-01-10T14:30:00Z',
-        environment: 'dev',
-        branch: 'feat/portal-improvements',
-        commit: '5e0ee8b',
-        status: 'success',
-        duration: 180,
-        author: 'motty',
-        message: 'Add React portal for deployment visualization',
-        changes: [
-            { action: 'create', resource: 'portal/', resourceType: 'directory' },
-            { action: 'create', resource: 'portal/package.json', resourceType: 'file' },
-            { action: 'update', resource: '.github/workflows/deploy-portal.yml', resourceType: 'workflow' }
-        ]
-    },
-    {
-        id: '2',
-        timestamp: '2025-01-10T12:15:00Z',
-        environment: 'staging',
-        branch: 'feat/aurora-instances',
-        commit: 'aded054',
-        status: 'success',
-        duration: 320,
-        author: 'motty',
-        message: 'Implement Aurora Serverless v2 with proper writer instances',
-        changes: [
-            { action: 'create', resource: 'db-aurora-1-staging-instance-1', resourceType: 'aurora_cluster_instance' },
-            { action: 'update', resource: 'db-aurora-1-staging', resourceType: 'aurora_cluster' },
-            { action: 'update', resource: 'insight-production-db-staging', resourceType: 'aurora_cluster' }
-        ]
-    },
-    {
-        id: '3',
-        timestamp: '2025-01-10T10:45:00Z',
-        environment: 'prod',
-        branch: 'main',
-        commit: 'fbd6eb2',
-        status: 'success',
-        duration: 45,
-        author: 'motty',
-        message: 'Production import verification - no changes',
-        changes: [
-            { action: 'no-change', resource: 'db-aurora-1', resourceType: 'aurora_cluster' },
-            { action: 'no-change', resource: 'db-rds-1', resourceType: 'db_instance' }
-        ]
-    }
-];
+// No mock data - portal now uses real deployment reports from CI/CD
 
 // Global state
 let allReports = [];
@@ -61,21 +12,16 @@ let currentFilters = {
 
 // API Service
 class ApiService {
-    static baseUrl = 'https://github.io/brainsway-infra';
+    static baseUrl = 'https://mottysisam.github.io/brainsway-infra';
 
     static async getReports(filters = {}) {
-        console.log('🚀 ApiService.getReports called - Environment:', {
-            baseUrl: this.baseUrl,
-            mockReportsLength: mockReports.length,
-            filters
-        });
-
+        console.log('🚀 ApiService.getReports called - Fetching real deployment reports from CI/CD');
+        
         let reports = [];
 
-        // Try to fetch real reports first (will fail gracefully)
         try {
             const manifestUrl = `${this.baseUrl}/reports/manifest.json`;
-            console.log('🔍 Production mode: Fetching reports from:', manifestUrl);
+            console.log('🔍 Fetching deployment reports from:', manifestUrl);
             const response = await fetch(manifestUrl);
             
             console.log('📡 Fetch response:', {
@@ -88,16 +34,39 @@ class ApiService {
             if (response.ok) {
                 const manifest = await response.json();
                 reports = manifest.reports || [];
-                console.log('✅ Fetched real reports from manifest:', reports.length);
+                console.log('✅ Successfully loaded', reports.length, 'deployment reports from CI/CD');
+                
+                // Fetch full report details for each report
+                const fullReports = await Promise.all(
+                    reports.map(async (reportSummary) => {
+                        try {
+                            const reportUrl = `${this.baseUrl}/reports/${reportSummary.file}`;
+                            const reportResponse = await fetch(reportUrl);
+                            if (reportResponse.ok) {
+                                const fullReport = await reportResponse.json();
+                                return fullReport;
+                            } else {
+                                console.warn('⚠️ Could not fetch full report:', reportSummary.file);
+                                return null;
+                            }
+                        } catch (error) {
+                            console.warn('⚠️ Error fetching report:', reportSummary.file, error);
+                            return null;
+                        }
+                    })
+                );
+                
+                reports = fullReports.filter(report => report !== null);
+                console.log('📊 Loaded', reports.length, 'complete deployment reports');
             } else {
-                console.log('⚠️ Manifest not found (status:', response.status, '), falling back to mock data');
-                reports = [...mockReports];
-                console.log('📋 Using mock data:', reports.length, 'reports');
+                console.log('📋 No deployment reports available yet (status:', response.status, ')');
+                console.log('💡 Reports will appear here after infrastructure deployments via PR comments');
+                reports = [];
             }
         } catch (error) {
-            console.error('❌ Failed to fetch reports, using mock data:', error);
-            reports = [...mockReports];
-            console.log('📋 Fallback mock data loaded:', reports.length, 'reports');
+            console.error('❌ Failed to fetch deployment reports:', error);
+            console.log('📋 No reports available - reports are generated by infrastructure deployments');
+            reports = [];
         }
 
         // Apply filters
@@ -329,7 +298,7 @@ function updateReportsGrid(reports) {
         const hasFilters = Object.values(currentFilters).some(v => v);
         document.getElementById('no-results-message').textContent = hasFilters
             ? 'Try adjusting your filters to see more results.'
-            : 'No deployment reports are available yet.';
+            : 'No deployment reports are available yet. Reports are generated automatically when infrastructure PRs are created and deployments are triggered via Digger comments.';
     } else {
         reportsGrid.style.display = 'grid';
         noResults.style.display = 'none';

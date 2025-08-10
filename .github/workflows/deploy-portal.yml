@@ -13,6 +13,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -105,10 +106,10 @@ jobs:
           fi
           
           echo "🔧 Checking JavaScript..."
-          if grep -q "mockReports" portal-vanilla/script.js; then
-            echo "✅ JavaScript has mock data"
+          if grep -q "ApiService" portal-vanilla/script.js; then
+            echo "✅ JavaScript has API service for real data"
           else
-            echo "❌ JavaScript missing mock data"
+            echo "❌ JavaScript missing API service"
             exit 1
           fi
           
@@ -126,7 +127,7 @@ jobs:
             - ✅ HTML structure verified
             - ✅ CSS styling validated 
             - ✅ JavaScript functionality confirmed
-            - ✅ Mock data integration working
+            - ✅ Real API service integration working
             
             Once this PR is merged to main, the portal will be deployed to:
             📊 **[brainsway-infra.github.io](https://mottysisam.github.io/brainsway-infra/)**
@@ -139,7 +140,7 @@ jobs:
             - Responsive design for mobile/desktop
             - Fast loading with minimal dependencies
             
-            *The portal uses vanilla JavaScript and will automatically fetch deployment reports.*`;
+            *The portal uses vanilla JavaScript and fetches real deployment reports from CI/CD workflows.*`;
             
             // Only comment once
             const { data: comments } = await github.rest.issues.listComments({
