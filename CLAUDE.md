@@ -90,6 +90,17 @@ import_maps/                 # optional import maps (prod adoption)
    * Use `gh run list --branch <branch> --limit 2` and `gh run view <run-id> --log` for monitoring
    * This ensures code quality and prevents broken workflows from being merged
 
+7. **Branch Protection & Required Status Checks**
+
+   * **Main branch protection**: Enabled with required status checks
+   * **Required checks**: 
+     * `pr-check` (Deploy Infrastructure Portal validation)
+     * `Digger - dev` (development environment planning/deployment)  
+     * `Digger - staging` (staging environment planning/deployment)
+   * **Status check behavior**: PRs cannot be merged until all required checks pass
+   * **Strict mode**: Branches must be up-to-date before merging
+   * **Check visibility**: All CI/CD workflows appear as status checks in PR interface
+
 ## Production adoption (import‑first)
 
 * For resources already in prod:
