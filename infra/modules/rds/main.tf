@@ -36,8 +36,55 @@ resource "aws_rds_cluster" "this" {
   vpc_security_group_ids              = try(each.value.vpc_security_group_ids, null)
   iam_database_authentication_enabled = try(each.value.iam_database_authentication_enabled, null)
   enable_http_endpoint                = try(each.value.enable_http_endpoint, null)
-  # Import-first posture
-  lifecycle { ignore_changes = all }
+  
+  dynamic "serverlessv2_scaling_configuration" {
+    for_each = each.value.serverlessv2_scaling_configuration != null ? [each.value.serverlessv2_scaling_configuration] : []
+    content {
+      max_capacity = serverlessv2_scaling_configuration.value.max_capacity
+      min_capacity = serverlessv2_scaling_configuration.value.min_capacity
+    }
+  }
+  
+  # Import-first posture - but allow capacity changes for Aurora Serverless
+  lifecycle { 
+    ignore_changes = [
+      engine_version,
+      master_password,  # Allow password management
+      deletion_protection,
+      backup_retention_period,
+      kms_key_id,
+      iam_database_authentication_enabled,
+      enable_http_endpoint
+    ]
+  }
+}
+
+# Aurora DB Instances (Cluster Members)
+resource "aws_rds_cluster_instance" "cluster_instances" {
+  for_each                            = var.cluster_instances
+  identifier                          = each.key
+  cluster_identifier                  = each.value.cluster_identifier
+  instance_class                      = each.value.instance_class
+  engine                              = try(each.value.engine, lookup(var.clusters, each.value.cluster_identifier, {}).engine, "aurora-postgresql")
+  engine_version                      = try(each.value.engine_version, lookup(var.clusters, each.value.cluster_identifier, {}).engine_version, null)
+  publicly_accessible                 = each.value.publicly_accessible
+  db_subnet_group_name                = try(each.value.db_subnet_group_name, lookup(var.clusters, each.value.cluster_identifier, {}).db_subnet_group_name, null)
+  performance_insights_enabled        = try(each.value.performance_insights_enabled, null)
+  db_parameter_group_name             = try(each.value.db_parameter_group_name, null)
+  promotion_tier                      = each.value.promotion_tier
+  tags                                = each.value.tags
+  
+  # Import-first posture - but allow capacity changes for Aurora Serverless
+  lifecycle { 
+    ignore_changes = [
+      engine_version,
+      performance_insights_enabled,
+      db_parameter_group_name
+    ]
+  }
+  
+  # Ensure cluster exists before creating instances
+  depends_on = [aws_rds_cluster.this]
 }
 
 resource "aws_db_instance" "this" {
