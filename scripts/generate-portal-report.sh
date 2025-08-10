@@ -132,12 +132,12 @@ if [[ ! -f "$MANIFEST_FILE" ]]; then
 fi
 
 # Read current manifest and add new report
-jq --arg report_file "${REPORT_ID}.json" --arg timestamp "$TIMESTAMP" '
+jq --arg report_file "${REPORT_ID}.json" --arg timestamp "$TIMESTAMP" --arg environment "$ENVIRONMENT" --arg status "$STATUS" '
   .reports |= (map(select(.id != $report_file)) + [{
     "id": $report_file,
     "timestamp": $timestamp,
-    "environment": "'$ENVIRONMENT'",
-    "status": "'$STATUS'",
+    "environment": $environment,
+    "status": $status,
     "file": $report_file
   }])
   | .reports |= sort_by(.timestamp) | reverse
