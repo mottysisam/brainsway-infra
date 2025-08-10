@@ -13,6 +13,28 @@ inputs = {
     }
   },
   "clusters": {
+    "db-aurora-1": {
+      "engine": "aurora-postgresql",
+      "engine_version": "13.12",
+      "engine_mode": "serverless",
+      "database_name": null,
+      "master_username": "postgres",
+      "db_subnet_group_name": "default",
+      "storage_encrypted": true,
+      "kms_key_id": "arn:aws:kms:us-east-2:154948530138:key/e392ccba-4ba3-452e-b0e0-135f8445ba5d",
+      "backup_retention_period": 7,
+      "deletion_protection": true,
+      "vpc_security_group_ids": [
+        "sg-0c0a0065"
+      ],
+      "iam_database_authentication_enabled": false,
+      "enable_http_endpoint": false,
+      "tags": {
+        "Name": "db-aurora-1",
+        "Environment": "prod",
+        "Type": "Aurora Serverless v1"
+      }
+    },
     "insight-production-db": {
       "engine": "aurora-postgresql",
       "engine_version": "13.12",

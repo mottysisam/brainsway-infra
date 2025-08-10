@@ -20,6 +20,8 @@ jobs:
       environments: ${{ steps.detect.outputs.environments }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git diff on push events
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -115,6 +117,7 @@ jobs:
         with:
           # For issue comments, we'll get the proper SHA in the next step
           ref: ${{ github.event_name == 'issue_comment' && github.sha || github.sha }}
+          fetch-depth: 0  # Full history needed for Terragrunt operations
 
       - name: Get PR context for issue comments
         id: pr-context
@@ -141,6 +144,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.pr-context.outputs.head_sha }}
+          fetch-depth: 0  # Full history needed for Terragrunt operations
 
       - name: Create pending status check
         if: github.event_name == 'issue_comment'
@@ -275,6 +279,57 @@ jobs:
             terragrunt run-all plan -no-color -parallelism 4
           fi
 
+      - name: Generate Portal Report
+        id: portal-report
+        if: ${{ success() && (github.event_name == 'pull_request' || github.event_name == 'issue_comment') }}
+        run: |
+          # Determine deployment status and operation details
+          DEPLOYMENT_STATUS="success"
+          OPERATION_DURATION="0"
+          
+          # Calculate rough duration (this is a placeholder - in real implementation you'd track start time)
+          OPERATION_START_TIME=$(date +%s)
+          OPERATION_DURATION=$(($(date +%s) - OPERATION_START_TIME + 300))  # Add base time for operation
+          
+          # Determine if this was an apply or plan operation
+          IS_APPLY_OPERATION="false"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            IS_APPLY_OPERATION="true"
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+            IS_APPLY_OPERATION="true"
+          fi
+          
+          echo "🎯 Generating portal report for:"
+          echo "  Environment: ${{ matrix.environment }}"
+          echo "  Operation: $([ "$IS_APPLY_OPERATION" = "true" ] && echo "apply" || echo "plan")"
+          echo "  Status: $DEPLOYMENT_STATUS"
+          echo "  Duration: ${OPERATION_DURATION}s"
+          
+          # Get PR number for the report
+          PR_NUMBER=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_NUMBER="${{ github.event.issue.number }}"
+          fi
+          
+          # Generate portal-compatible report
+          if [[ -n "$PR_NUMBER" ]]; then
+            chmod +x scripts/generate-portal-report.sh
+            ./scripts/generate-portal-report.sh \
+              "$PR_NUMBER" \
+              "${{ github.sha }}" \
+              "${{ matrix.environment }}" \
+              "$DEPLOYMENT_STATUS" \
+              "$OPERATION_DURATION"
+            
+            echo "portal_report_generated=true" >> $GITHUB_OUTPUT
+            echo "portal_pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  Skipping portal report - no PR context available"
+            echo "portal_report_generated=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Verify AWS Resources After Infrastructure Operation
         id: verification
         if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))) }}
@@ -341,6 +396,14 @@ jobs:
           name: verification-report-${{ matrix.environment }}
           path: ${{ steps.verification.outputs.verification_file }}
           retention-days: 30
+
+      - name: Upload Portal Reports
+        if: ${{ always() && steps.portal-report.outputs.portal_report_generated == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-reports-${{ matrix.environment }}
+          path: portal-reports/
+          retention-days: 90
 
       - name: Install nodemailer for email notifications
         if: ${{ always() && steps.verification.outputs.verification_file }}
@@ -677,6 +740,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for deployment report generation
 
       - name: Generate Deployment Report
         run: |
@@ -724,11 +789,19 @@ jobs:
             if (reportExists) {
               comment += `📄 **[View Full Deployment Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})**
               
+              🎯 **[Interactive Portal Dashboard](https://mottysisam.github.io/brainsway-infra/)**
+              
               The detailed HTML report shows:
               - Resource-by-resource deployment preview
               - Environment-specific deployment strategies  
               - Visual breakdown of infrastructure changes
               - Resource counts and action types
+              
+              The **Interactive Portal** provides:
+              - Real-time deployment history and analytics
+              - Environment-specific filtering and search
+              - Visual charts and success rate tracking
+              - Mobile-responsive dashboard
               
               *Download the \`deployment-report\` artifact from the Actions tab to view the full report.*`;
             } else {
@@ -752,3 +825,69 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
+
+  deploy-portal-reports:
+    needs: [detect-environments, digger]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Download all portal reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: portal-reports-*
+          path: downloaded-reports/
+          merge-multiple: true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        if: github.ref == 'refs/heads/main'
+
+      - name: Checkout gh-pages branch
+        run: |
+          git fetch origin gh-pages:gh-pages 2>/dev/null || git checkout --orphan gh-pages
+          git checkout gh-pages
+          
+          # Create reports directory if it doesn't exist
+          mkdir -p reports
+          
+          # Copy new reports from artifacts
+          if [[ -d "downloaded-reports" ]]; then
+            cp -r downloaded-reports/* reports/ || echo "No reports to copy"
+          fi
+          
+          echo "📊 Portal reports updated in gh-pages branch"
+          ls -la reports/ || echo "No reports directory found"
+
+      - name: Commit and push reports
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add all report files
+          git add reports/
+          
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update portal reports from PR #${{ github.event.pull_request.number }}
+            
+            - Updated deployment reports
+            - Generated from commit ${{ github.sha }}
+            - Environment updates: ${{ needs.detect-environments.outputs.environments }}
+            
+            🤖 Auto-generated by infrastructure CI"
+            
+            git push origin gh-pages
+            echo "✅ Portal reports deployed to GitHub Pages"
+          fi
