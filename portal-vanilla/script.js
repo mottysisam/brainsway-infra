@@ -1,0 +1,511 @@
+// Mock data for development
+const mockReports = [
+    {
+        id: '1',
+        timestamp: '2025-01-10T14:30:00Z',
+        environment: 'dev',
+        branch: 'feat/portal-improvements',
+        commit: '5e0ee8b',
+        status: 'success',
+        duration: 180,
+        author: 'motty',
+        message: 'Add React portal for deployment visualization',
+        changes: [
+            { action: 'create', resource: 'portal/', resourceType: 'directory' },
+            { action: 'create', resource: 'portal/package.json', resourceType: 'file' },
+            { action: 'update', resource: '.github/workflows/deploy-portal.yml', resourceType: 'workflow' }
+        ]
+    },
+    {
+        id: '2',
+        timestamp: '2025-01-10T12:15:00Z',
+        environment: 'staging',
+        branch: 'feat/aurora-instances',
+        commit: 'aded054',
+        status: 'success',
+        duration: 320,
+        author: 'motty',
+        message: 'Implement Aurora Serverless v2 with proper writer instances',
+        changes: [
+            { action: 'create', resource: 'db-aurora-1-staging-instance-1', resourceType: 'aurora_cluster_instance' },
+            { action: 'update', resource: 'db-aurora-1-staging', resourceType: 'aurora_cluster' },
+            { action: 'update', resource: 'insight-production-db-staging', resourceType: 'aurora_cluster' }
+        ]
+    },
+    {
+        id: '3',
+        timestamp: '2025-01-10T10:45:00Z',
+        environment: 'prod',
+        branch: 'main',
+        commit: 'fbd6eb2',
+        status: 'success',
+        duration: 45,
+        author: 'motty',
+        message: 'Production import verification - no changes',
+        changes: [
+            { action: 'no-change', resource: 'db-aurora-1', resourceType: 'aurora_cluster' },
+            { action: 'no-change', resource: 'db-rds-1', resourceType: 'db_instance' }
+        ]
+    }
+];
+
+// Global state
+let allReports = [];
+let filteredReports = [];
+let currentFilters = {
+    environment: '',
+    status: '',
+    branch: '',
+    author: ''
+};
+
+// API Service
+class ApiService {
+    static baseUrl = 'https://github.io/brainsway-infra';
+
+    static async getReports(filters = {}) {
+        console.log('🚀 ApiService.getReports called - Environment:', {
+            baseUrl: this.baseUrl,
+            mockReportsLength: mockReports.length,
+            filters
+        });
+
+        let reports = [];
+
+        // Try to fetch real reports first (will fail gracefully)
+        try {
+            const manifestUrl = `${this.baseUrl}/reports/manifest.json`;
+            console.log('🔍 Production mode: Fetching reports from:', manifestUrl);
+            const response = await fetch(manifestUrl);
+            
+            console.log('📡 Fetch response:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                url: response.url
+            });
+            
+            if (response.ok) {
+                const manifest = await response.json();
+                reports = manifest.reports || [];
+                console.log('✅ Fetched real reports from manifest:', reports.length);
+            } else {
+                console.log('⚠️ Manifest not found (status:', response.status, '), falling back to mock data');
+                reports = [...mockReports];
+                console.log('📋 Using mock data:', reports.length, 'reports');
+            }
+        } catch (error) {
+            console.error('❌ Failed to fetch reports, using mock data:', error);
+            reports = [...mockReports];
+            console.log('📋 Fallback mock data loaded:', reports.length, 'reports');
+        }
+
+        // Apply filters
+        if (filters.environment) {
+            reports = reports.filter(r => r.environment === filters.environment);
+        }
+        if (filters.status) {
+            reports = reports.filter(r => r.status === filters.status);
+        }
+        if (filters.author) {
+            reports = reports.filter(r => 
+                r.author.toLowerCase().includes(filters.author.toLowerCase())
+            );
+        }
+        if (filters.branch) {
+            reports = reports.filter(r => 
+                r.branch.toLowerCase().includes(filters.branch.toLowerCase())
+            );
+        }
+
+        const sortedReports = reports.sort((a, b) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+
+        console.log('🎯 ApiService.getReports final result:', sortedReports.length, 'reports');
+        return sortedReports;
+    }
+}
+
+// Utility functions
+function formatDuration(seconds) {
+    if (isNaN(seconds) || !isFinite(seconds)) {
+        return '0m 0s';
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s`;
+}
+
+function formatPercentage(value) {
+    if (isNaN(value) || !isFinite(value)) {
+        return '0%';
+    }
+    return `${Math.round(value * 100)}%`;
+}
+
+function formatDate(timestamp) {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function formatDateTime(timestamp) {
+    return new Date(timestamp).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+    });
+}
+
+// Statistics calculation
+function calculateStats(reports) {
+    console.log('📊 Dashboard: Calculating stats for', reports.length, 'reports');
+    
+    const environments = ['dev', 'staging', 'prod'];
+    const environmentStats = environments.map(env => {
+        const envReports = reports.filter(r => r.environment === env);
+        const successful = envReports.filter(r => r.status === 'success').length;
+        const totalDuration = envReports.reduce((sum, r) => sum + (r.duration || 0), 0);
+        const lastDeployment = envReports.length > 0 
+            ? envReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp
+            : undefined;
+
+        const envStats = {
+            environment: env,
+            totalDeployments: envReports.length,
+            successRate: envReports.length > 0 ? successful / envReports.length : 0,
+            averageDuration: envReports.length > 0 ? totalDuration / envReports.length : 0,
+            lastDeployment
+        };
+        
+        console.log(`📊 Stats for ${env}:`, envStats);
+        return envStats;
+    });
+
+    console.log('📊 Final environment stats:', environmentStats);
+    return environmentStats;
+}
+
+// UI Update functions
+function updateStatsCards(reports) {
+    const stats = calculateStats(reports);
+    const totalDeployments = stats.reduce((sum, env) => sum + env.totalDeployments, 0);
+    const overallSuccessRate = totalDeployments > 0 
+        ? stats.reduce((sum, env) => sum + env.successRate * env.totalDeployments, 0) / totalDeployments
+        : 0;
+    const averageDuration = totalDeployments > 0
+        ? stats.reduce((sum, env) => sum + env.averageDuration * env.totalDeployments, 0) / totalDeployments
+        : 0;
+
+    // Update main stat cards
+    document.getElementById('total-deployments').textContent = totalDeployments;
+    document.getElementById('success-rate').textContent = formatPercentage(overallSuccessRate);
+    document.getElementById('avg-duration').textContent = formatDuration(averageDuration);
+    
+    const failedCount = totalDeployments > 0 && isFinite(overallSuccessRate) ? 
+        totalDeployments - Math.round(overallSuccessRate * totalDeployments) : 0;
+    document.getElementById('failed-count').textContent = failedCount;
+    document.getElementById('failure-rate').textContent = formatPercentage(1 - overallSuccessRate) + ' failure rate';
+
+    // Update environment breakdown
+    const environmentContainer = document.getElementById('environment-stats');
+    environmentContainer.innerHTML = '';
+    
+    stats.forEach(env => {
+        const envCard = document.createElement('div');
+        envCard.className = 'env-card';
+        envCard.innerHTML = `
+            <div class="env-title env-${env.environment}">
+                ${env.environment.toUpperCase()}
+            </div>
+            <div class="space-y-2">
+                <div>
+                    <div class="text-2xl font-bold text-gray-900">${env.totalDeployments}</div>
+                    <div class="text-xs text-gray-500">deployments</div>
+                </div>
+                <div>
+                    <div class="text-lg font-semibold text-green-600">
+                        ${formatPercentage(env.successRate)}
+                    </div>
+                    <div class="text-xs text-gray-500">success rate</div>
+                </div>
+                <div>
+                    <div class="text-sm font-medium text-blue-600">
+                        ${formatDuration(env.averageDuration)}
+                    </div>
+                    <div class="text-xs text-gray-500">avg duration</div>
+                </div>
+                ${env.lastDeployment ? `
+                    <div>
+                        <div class="text-xs text-gray-500">
+                            Last: ${formatDateTime(env.lastDeployment)}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        environmentContainer.appendChild(envCard);
+    });
+}
+
+function createReportCard(report) {
+    const card = document.createElement('div');
+    card.className = 'report-card';
+    card.onclick = () => openReportModal(report);
+
+    const changesSummary = report.changes.reduce((acc, change) => {
+        acc[change.action] = (acc[change.action] || 0) + 1;
+        return acc;
+    }, {});
+
+    const changesBadges = Object.entries(changesSummary)
+        .map(([action, count]) => `<span class="change-badge change-${action}">+${count} ${action}</span>`)
+        .join('');
+
+    card.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center space-x-2">
+                <span class="status-badge status-${report.status}">
+                    ${report.status === 'success' ? '✅' : report.status === 'failed' ? '❌' : '⏳'} ${report.status}
+                </span>
+                <span class="env-badge env-${report.environment}">
+                    ${report.environment}
+                </span>
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${report.message}</h3>
+            <div class="flex items-center space-x-4 text-sm text-gray-600">
+                <div class="flex items-center space-x-1">
+                    <span>🔗</span>
+                    <span>${report.commit}</span>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <span>👤</span>
+                    <span>${report.author}</span>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <span>⏱️</span>
+                    <span>${formatDuration(report.duration)}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-500">
+                <div>${report.branch}</div>
+                <div>${formatDate(report.timestamp)}</div>
+            </div>
+            <div class="text-right">
+                <div class="text-sm text-gray-500 mb-1">Changes:</div>
+                <div class="flex flex-wrap gap-1">
+                    ${changesBadges}
+                </div>
+            </div>
+        </div>
+    `;
+
+    return card;
+}
+
+function updateReportsGrid(reports) {
+    const reportsGrid = document.getElementById('reports-grid');
+    const noResults = document.getElementById('no-results');
+    const resultsCount = document.getElementById('results-count');
+
+    // Update results count
+    resultsCount.textContent = `(${reports.length} ${reports.length === 1 ? 'result' : 'results'})`;
+
+    if (reports.length === 0) {
+        reportsGrid.style.display = 'none';
+        noResults.style.display = 'block';
+        
+        const hasFilters = Object.values(currentFilters).some(v => v);
+        document.getElementById('no-results-message').textContent = hasFilters
+            ? 'Try adjusting your filters to see more results.'
+            : 'No deployment reports are available yet.';
+    } else {
+        reportsGrid.style.display = 'grid';
+        noResults.style.display = 'none';
+        
+        reportsGrid.innerHTML = '';
+        reports.forEach(report => {
+            reportsGrid.appendChild(createReportCard(report));
+        });
+    }
+}
+
+function openReportModal(report) {
+    const modal = document.getElementById('modal-overlay');
+    const modalContent = document.getElementById('modal-content');
+    
+    const changesList = report.changes.map(change => `
+        <div class="flex items-center space-x-3 p-3 rounded-lg ${
+            change.action === 'create' ? 'bg-green-50' :
+            change.action === 'update' ? 'bg-blue-50' :
+            change.action === 'delete' ? 'bg-red-50' :
+            'bg-gray-50'
+        }">
+            <span class="change-badge change-${change.action}">
+                ${change.action.toUpperCase()}
+            </span>
+            <div>
+                <div class="font-medium text-gray-900">${change.resource}</div>
+                <div class="text-sm text-gray-500">${change.resourceType}</div>
+                ${change.details ? `<div class="text-xs text-gray-400 mt-1">${change.details}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+
+    modalContent.innerHTML = `
+        <div class="report-card" style="cursor: default; margin: 0;">
+            ${createReportCard(report).innerHTML}
+        </div>
+        
+        ${report.changes.length > 0 ? `
+            <div>
+                <h4 class="text-lg font-semibold text-gray-900 mb-3">Resource Changes</h4>
+                <div class="space-y-2">
+                    ${changesList}
+                </div>
+            </div>
+        ` : ''}
+
+        ${report.terragruntOutput ? `
+            <div>
+                <h4 class="text-lg font-semibold text-gray-900 mb-3">Terragrunt Output</h4>
+                <pre class="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto">${report.terragruntOutput}</pre>
+            </div>
+        ` : ''}
+    `;
+    
+    modal.style.display = 'flex';
+}
+
+function closeReportModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function showLoading() {
+    document.getElementById('loading-state').style.display = 'flex';
+    document.getElementById('error-state').style.display = 'none';
+    document.getElementById('main-content').style.display = 'none';
+}
+
+function showError(message) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'flex';
+    document.getElementById('main-content').style.display = 'none';
+    document.getElementById('error-message').textContent = message;
+}
+
+function showContent() {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+}
+
+// Data loading
+async function loadReports() {
+    try {
+        showLoading();
+        console.log('📊 Dashboard: Loading reports...');
+        const data = await ApiService.getReports(currentFilters);
+        console.log('📊 Dashboard: Loaded reports:', data.length, data);
+        
+        allReports = data;
+        filteredReports = data;
+        
+        updateStatsCards(data);
+        updateReportsGrid(data);
+        showContent();
+    } catch (err) {
+        console.error('❌ Dashboard: Error loading reports:', err);
+        showError('Failed to load deployment reports');
+    }
+}
+
+function applyFilters() {
+    // Get current filter values
+    currentFilters = {
+        environment: document.getElementById('environment-filter').value,
+        status: document.getElementById('status-filter').value,
+        branch: document.getElementById('branch-filter').value.trim(),
+        author: document.getElementById('author-filter').value.trim()
+    };
+
+    console.log('🔍 Applying filters:', currentFilters);
+
+    // Filter reports locally
+    let filtered = [...allReports];
+
+    if (currentFilters.environment) {
+        filtered = filtered.filter(r => r.environment === currentFilters.environment);
+    }
+    if (currentFilters.status) {
+        filtered = filtered.filter(r => r.status === currentFilters.status);
+    }
+    if (currentFilters.author) {
+        filtered = filtered.filter(r => 
+            r.author.toLowerCase().includes(currentFilters.author.toLowerCase())
+        );
+    }
+    if (currentFilters.branch) {
+        filtered = filtered.filter(r => 
+            r.branch.toLowerCase().includes(currentFilters.branch.toLowerCase())
+        );
+    }
+
+    filteredReports = filtered;
+    updateReportsGrid(filtered);
+}
+
+// Event listeners
+function setupEventListeners() {
+    // Refresh button
+    document.getElementById('refresh-button').onclick = loadReports;
+    
+    // Retry button
+    document.getElementById('retry-button').onclick = loadReports;
+    
+    // Modal close
+    document.getElementById('close-modal').onclick = closeReportModal;
+    document.getElementById('modal-overlay').onclick = (e) => {
+        if (e.target === document.getElementById('modal-overlay')) {
+            closeReportModal();
+        }
+    };
+
+    // Filter inputs
+    document.getElementById('environment-filter').onchange = applyFilters;
+    document.getElementById('status-filter').onchange = applyFilters;
+    document.getElementById('branch-filter').oninput = applyFilters;
+    document.getElementById('author-filter').oninput = applyFilters;
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeReportModal();
+        }
+        if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            loadReports();
+        }
+    });
+}
+
+// Initialize the application
+function init() {
+    console.log('🚀 Initializing Brainsway Infrastructure Portal');
+    setupEventListeners();
+    loadReports();
+}
+
+// Start the application when the page loads
+document.addEventListener('DOMContentLoaded', init);
