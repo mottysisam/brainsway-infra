@@ -7,20 +7,26 @@ interface StatsCardsProps {
 
 export function StatsCards({ stats }: StatsCardsProps) {
   const totalDeployments = stats.reduce((sum, env) => sum + env.totalDeployments, 0)
-  const overallSuccessRate = stats.length > 0 
+  const overallSuccessRate = totalDeployments > 0 
     ? stats.reduce((sum, env) => sum + env.successRate * env.totalDeployments, 0) / totalDeployments
     : 0
-  const averageDuration = stats.length > 0
+  const averageDuration = totalDeployments > 0
     ? stats.reduce((sum, env) => sum + env.averageDuration * env.totalDeployments, 0) / totalDeployments
     : 0
 
   const formatDuration = (seconds: number) => {
+    if (isNaN(seconds) || !isFinite(seconds)) {
+      return '0m 0s'
+    }
     const mins = Math.floor(seconds / 60)
     const secs = Math.round(seconds % 60)
     return `${mins}m ${secs}s`
   }
 
   const formatPercentage = (value: number) => {
+    if (isNaN(value) || !isFinite(value)) {
+      return '0%'
+    }
     return `${Math.round(value * 100)}%`
   }
 
@@ -90,7 +96,8 @@ export function StatsCards({ stats }: StatsCardsProps) {
           <div>
             <p className="text-sm font-medium text-gray-600">Failed</p>
             <p className="text-3xl font-bold text-red-600">
-              {totalDeployments - Math.round(overallSuccessRate * totalDeployments)}
+              {totalDeployments > 0 && isFinite(overallSuccessRate) ? 
+                totalDeployments - Math.round(overallSuccessRate * totalDeployments) : 0}
             </p>
           </div>
           <div className="p-3 bg-red-100 rounded-full">
