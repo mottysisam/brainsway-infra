@@ -1,0 +1,12 @@
+{
+  "reports": [
+    {
+      "id": "5-484230c-staging.json",
+      "timestamp": "2025-08-10T18:52:12Z",
+      "environment": "staging",
+      "status": "success",
+      "file": "5-484230c-staging.json"
+    }
+  ],
+  "lastUpdated": "2025-08-10T18:52:12Z"
+}
