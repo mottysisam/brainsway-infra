@@ -1,0 +1,12 @@
+{
+  "reports": [
+    {
+      "id": "5-dd3f716-staging.json",
+      "timestamp": "2025-08-10T18:02:07Z",
+      "environment": "staging",
+      "status": "success",
+      "file": "5-dd3f716-staging.json"
+    }
+  ],
+  "lastUpdated": "2025-08-10T18:02:07Z"
+}
