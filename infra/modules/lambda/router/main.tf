@@ -22,13 +22,14 @@ def handler(event, context):
     
     try:
         # Log the incoming event (sanitized)
-        logger.info(f"Received event: {json.dumps({
+        event_log = {
             'httpMethod': event.get('httpMethod'),
             'path': event.get('path'),
             'resource': event.get('resource'),
             'stage': event.get('requestContext', {}).get('stage'),
             'requestId': event.get('requestContext', {}).get('requestId')
-        })}")
+        }
+        logger.info(f"Received event: {json.dumps(event_log)}")
         
         # Extract request information
         http_method = event.get('httpMethod', 'GET')
