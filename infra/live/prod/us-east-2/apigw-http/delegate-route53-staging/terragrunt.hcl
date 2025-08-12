@@ -32,13 +32,13 @@ locals {
   parent_zone_id   = "Z0391113OQXSRY8SUJ92"  # Use specific zone ID from parent zone deployment
   parent_domain_name = "brainsway.cloud"
   
-  # Static NS records for initial deployment (will be replaced with real ones later)
-  # These are placeholder AWS DNS servers that will be replaced when staging zone is created
-  staging_static_ns = [
-    "ns-234.awsdns-23.com.",
-    "ns-567.awsdns-56.net.",
-    "ns-890.awsdns-89.org.", 
-    "ns-345.awsdns-34.co.uk."
+  # Real NS records from staging zone deployment (Zone ID: Z104771829W884YRWP0F1)
+  # Updated with actual AWS DNS servers after staging zone creation
+  staging_real_ns = [
+    "ns-1505.awsdns-60.org.",
+    "ns-1865.awsdns-41.co.uk.",
+    "ns-378.awsdns-47.com.",
+    "ns-535.awsdns-02.net."
   ]
 }
 
@@ -46,7 +46,7 @@ inputs = {
   environment            = local.environment  # Required by delegate_subzone module
   parent_zone_id         = local.parent_zone_id  # Use specific zone ID instead of domain lookup
   subdomain_name         = "staging.brainsway.cloud"
-  subdomain_name_servers = local.staging_static_ns  # Using static NS for initial deployment
+  subdomain_name_servers = local.staging_real_ns  # Using real NS from staging zone deployment
 
   ttl = 300
 

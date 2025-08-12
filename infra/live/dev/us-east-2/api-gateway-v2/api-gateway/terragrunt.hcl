@@ -50,20 +50,17 @@ dependency "lambda" {
 }
 
 inputs = {
-  # API Gateway configuration
-  api_name        = local.api_name
-  environment     = "dev"
-  api_description = "HTTP API Gateway for ${"dev"} environment"
+  # API Gateway configuration (matching module variables)
+  api_name    = local.api_name
+  stage_name  = "v1"
   
-  # Lambda integration
-  lambda_invoke_arn = dependency.lambda.outputs.invoke_arn
-  lambda_function_name = dependency.lambda.outputs.function_name
+  # Lambda integration (fix variable names)
+  lambda_arn = dependency.lambda.outputs.function_arn
   
-  # Custom domain configuration
-  domain_name           = local.domain_name
-  certificate_arn       = dependency.acm.outputs.certificate_arn
-  route53_zone_id       = dependency.route53.outputs.zone_id
-  create_route53_record = true
+  # Custom domain configuration (fix variable names)
+  domain_name     = local.domain_name
+  certificate_arn = dependency.acm.outputs.certificate_arn
+  zone_id         = dependency.route53.outputs.zone_id
   
   # CORS configuration (permissive for dev)
   enable_cors            = true
@@ -75,44 +72,18 @@ inputs = {
   cors_allow_credentials = false
   
   # Throttling configuration (lenient for dev)
-  enable_throttling         = true
-  throttling_rate_limit     = 2000  # requests per second
-  throttling_burst_limit    = 5000  # burst capacity
-  
-  # Request/Response configuration
-  request_timeout_ms        = 29000  # Just under Lambda timeout
-  max_request_size_kb       = 10240  # 10MB
-  max_response_size_kb      = 6144   # 6MB
+  throttle_rate_limit    = 2000  # requests per second
+  throttle_burst_limit   = 5000  # burst capacity
   
   # Logging configuration
-  enable_access_logging     = true
-  log_retention_in_days     = 7    # Shorter retention for dev
-  access_log_format         = "detailed"  # Can be "simple", "detailed", or "json"
+  enable_logging         = true
+  log_retention_days     = 7    # Shorter retention for dev
   
-  # Stage configuration
-  stage_name              = "v1"
-  auto_deploy             = true
-  stage_description       = "Development stage for ${local.api_name}"
-  
-  # Request validation
-  enable_request_validation = false  # Disabled for dev flexibility
-  
-  # API Key authentication (disabled for dev)
-  enable_api_key_auth      = false
-  api_key_source           = null
-  
-  # Monitoring and alerting
-  enable_monitoring        = true
-  monitoring_sns_topic_arns = []  # TODO: Add SNS topic ARN for alerts
-  
-  # Error thresholds for dev (more lenient)
-  client_error_threshold   = 20   # 20% client error rate
-  server_error_threshold   = 10   # 10% server error rate
-  latency_threshold_ms     = 5000 # 5 second latency threshold
+  # Health endpoint
+  enable_health_endpoint = true
   
   # WAF integration (optional, configured separately)
-  enable_waf_integration   = false  # Can be enabled later
-  waf_web_acl_arn         = null
+  web_acl_arn = ""  # Empty for dev
   
   # Tags
   tags = {

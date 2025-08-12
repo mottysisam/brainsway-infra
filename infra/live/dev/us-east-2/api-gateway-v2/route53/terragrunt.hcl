@@ -1,45 +1,51 @@
+# Reference to existing DNS zone created in apigw-http/route53
+# This provides outputs for the existing dev.brainsway.cloud zone
+
 include "root" {
   path = find_in_parent_folders()
 }
 
+# Data source configuration to reference existing Route53 zone
+# No dependencies needed since we're using data sources
+
+# This is a data-only configuration - no resources created
+# Just passes through the existing zone information as outputs
+
+# Use inline terraform configuration (no external source needed)
 terraform {
-  source = "../../../../../modules/route53/subzone"
+  source = "."
 }
 
-
-locals {
-  
-  # Domain configuration
-  subdomain_name = "dev.brainsway.cloud"
+# Generate the data source module with outputs
+generate "main" {
+  path      = "main.tf"
+  if_exists = "overwrite_terragrunt"
+  contents = <<EOF
+# Data source to reference existing Route53 zone
+data "aws_route53_zone" "existing" {
+  name = "dev.brainsway.cloud"
+  private_zone = false
 }
 
-inputs = {
-  # Subdomain configuration
-  domain_name     = local.subdomain_name
-  environment     = "dev"
-  comment         = "Delegated hosted zone for ${"dev"} environment API Gateway"
-  force_destroy   = true  # Allow destruction in dev environment
-  
-  # Health check configuration
-  enable_health_check    = true
-  health_check_type      = "HTTPS"
-  health_check_port      = 443
-  health_check_path      = "/health"
-  
-  # Query logging
-  enable_query_logging      = true
-  query_log_retention_days  = 7  # Shorter retention for dev
-  
-  # Monitoring and alerting
-  sns_topic_arns = []  # TODO: Add SNS topic ARN for health check alerts
-  
-  # Tags
-  tags = {
-    Name        = local.subdomain_name
-    Environment = "dev"
-    Purpose     = "DNS Delegation"
-    Type        = "Subzone"
-    ManagedBy   = "Terragrunt"
-    Project     = "multi-account-api-gateway"
-  }
+# Output the zone information for other modules to use
+output "zone_id" {
+  value = data.aws_route53_zone.existing.zone_id
+  description = "Route53 zone ID for dev.brainsway.cloud"
+}
+
+output "domain_name" {
+  value = data.aws_route53_zone.existing.name
+  description = "Domain name for the hosted zone"
+}
+
+output "name_servers" {
+  value = data.aws_route53_zone.existing.name_servers
+  description = "Name servers for the hosted zone"
+}
+
+output "zone_arn" {
+  value = data.aws_route53_zone.existing.arn
+  description = "ARN of the hosted zone"
+}
+EOF
 }
