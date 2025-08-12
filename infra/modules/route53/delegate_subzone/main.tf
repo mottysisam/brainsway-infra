@@ -112,7 +112,6 @@ resource "aws_route53_health_check" "delegation_health" {
   
   type                            = "CALCULATED"
   cloudwatch_alarm_region         = data.aws_region.current.name
-  cloudwatch_logs_region          = data.aws_region.current.name
   insufficient_data_health_status = "Failure"
   
   # This will be a simple check that the delegated zone responds
