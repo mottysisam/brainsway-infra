@@ -300,6 +300,32 @@ resource "aws_iam_role_policy_attachment" "lambda_xray_write" {
   policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
 }
 
+# Dead Letter Queue permissions (if DLQ is enabled)
+data "aws_iam_policy_document" "dlq_policy" {
+  count = var.execution_role_arn == null && var.enable_dlq ? 1 : 0
+  
+  statement {
+    effect = "Allow"
+    
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueAttributes"
+    ]
+    
+    resources = [
+      var.dlq_target_arn != null ? var.dlq_target_arn : aws_sqs_queue.dlq[0].arn
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_dlq_policy" {
+  count = var.execution_role_arn == null && var.enable_dlq ? 1 : 0
+  
+  name_prefix = "${var.function_name}-dlq-policy-"
+  role        = aws_iam_role.lambda_execution[0].id
+  policy      = data.aws_iam_policy_document.dlq_policy[0].json
+}
+
 # Additional policies
 resource "aws_iam_role_policy" "additional_policies" {
   count = var.execution_role_arn == null && length(var.additional_policy_documents) > 0 ? length(var.additional_policy_documents) : 0

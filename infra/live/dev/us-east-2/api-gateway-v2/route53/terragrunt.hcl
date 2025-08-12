@@ -1,51 +1,42 @@
-# Reference to existing DNS zone created in apigw-http/route53
-# This provides outputs for the existing dev.brainsway.cloud zone
+# Create the dev.brainsway.cloud subdomain zone for API Gateway
+# This zone will be delegated from the parent brainsway.cloud zone
 
 include "root" {
   path = find_in_parent_folders()
 }
 
-# Data source configuration to reference existing Route53 zone
-# No dependencies needed since we're using data sources
-
-# This is a data-only configuration - no resources created
-# Just passes through the existing zone information as outputs
-
-# Use inline terraform configuration (no external source needed)
 terraform {
-  source = "."
+  source = "../../../../../modules/route53/subzone"
 }
 
-# Generate the data source module with outputs
-generate "main" {
-  path      = "main.tf"
-  if_exists = "overwrite_terragrunt"
-  contents = <<EOF
-# Data source to reference existing Route53 zone
-data "aws_route53_zone" "existing" {
-  name = "dev.brainsway.cloud"
-  private_zone = false
+locals {
+  # Domain configuration
+  subdomain = "dev.brainsway.cloud"
+  parent_domain = "brainsway.cloud"
+  
+  # Parent zone ID (from the brainsway.cloud zone in the dev account)
+  parent_zone_id = "Z0391113OQXSRY8SUJ92"  # terraform-created zone
 }
 
-# Output the zone information for other modules to use
-output "zone_id" {
-  value = data.aws_route53_zone.existing.zone_id
-  description = "Route53 zone ID for dev.brainsway.cloud"
-}
-
-output "domain_name" {
-  value = data.aws_route53_zone.existing.name
-  description = "Domain name for the hosted zone"
-}
-
-output "name_servers" {
-  value = data.aws_route53_zone.existing.name_servers
-  description = "Name servers for the hosted zone"
-}
-
-output "zone_arn" {
-  value = data.aws_route53_zone.existing.arn
-  description = "ARN of the hosted zone"
-}
-EOF
+inputs = {
+  # Subdomain zone configuration (matching module variables)
+  domain_name = local.subdomain
+  
+  # Environment
+  environment = "dev"
+  
+  # Optional configurations
+  force_destroy = true  # Allow destruction in dev environment
+  enable_query_logging = false  # Disable for dev to reduce costs
+  enable_health_check = false   # Will be handled by API Gateway
+  
+  # Tags
+  tags = {
+    Name        = "${local.subdomain}-zone"
+    Environment = "dev"
+    Purpose     = "API Gateway DNS"
+    Domain      = local.subdomain
+    ManagedBy   = "Terragrunt"
+    Project     = "multi-account-api-gateway"
+  }
 }
