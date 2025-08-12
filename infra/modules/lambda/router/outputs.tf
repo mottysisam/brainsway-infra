@@ -130,8 +130,9 @@ output "provisioned_concurrency_config" {
   description = "Provisioned concurrency configuration"
   value = var.provisioned_concurrency_config != null ? {
     provisioned_concurrent_executions = var.provisioned_concurrency_config.provisioned_concurrent_executions
-    allocated_provisioned_concurrent_executions = aws_lambda_provisioned_concurrency_config.this[0].allocated_provisioned_concurrent_executions
-    status = aws_lambda_provisioned_concurrency_config.this[0].status
+    # Note: allocated_provisioned_concurrent_executions and status are not available in AWS provider
+    function_name = aws_lambda_provisioned_concurrency_config.this[0].function_name
+    qualifier = aws_lambda_provisioned_concurrency_config.this[0].qualifier
   } : null
 }
 
