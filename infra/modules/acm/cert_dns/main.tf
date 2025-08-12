@@ -17,7 +17,6 @@ resource "aws_acm_certificate" "this" {
   }
   
   # Note: early_renewal_duration is configured separately, not in options block
-  }
   
   lifecycle {
     create_before_destroy = true
