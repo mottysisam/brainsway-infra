@@ -37,7 +37,7 @@ inputs = {
   
   # DNS validation
   route53_zone_id = dependency.route53.outputs.zone_id
-  validation_timeout = "10m"
+  validation_timeout = "20m"  # Increased from 10m for slower DNS propagation
   
   # Security configuration
   key_algorithm = "RSA_2048"
