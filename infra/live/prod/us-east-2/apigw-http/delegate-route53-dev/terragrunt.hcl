@@ -28,8 +28,9 @@ terraform {
 # }
 
 locals {
-  environment        = "prod"
-  parent_domain_name = "brainsway.cloud"  # Will lookup zone ID dynamically
+  environment      = "prod"
+  parent_zone_id   = "Z0391113OQXSRY8SUJ92"  # Use specific zone ID from parent zone deployment
+  parent_domain_name = "brainsway.cloud"
   
   # Static NS records for initial deployment (will be replaced with real ones later)
   # These are placeholder AWS DNS servers that will be replaced when dev zone is created
@@ -43,7 +44,7 @@ locals {
 
 inputs = {
   environment            = local.environment  # Required by delegate_subzone module
-  parent_domain_name     = local.parent_domain_name  # Module will lookup zone ID
+  parent_zone_id         = local.parent_zone_id  # Use specific zone ID instead of domain lookup
   subdomain_name         = "dev.brainsway.cloud"
   subdomain_name_servers = local.dev_static_ns  # Using static NS for initial deployment
 

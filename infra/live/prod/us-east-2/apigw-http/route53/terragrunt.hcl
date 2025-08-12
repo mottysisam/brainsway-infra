@@ -23,9 +23,9 @@ inputs = {
   # Disable health check for parent zone (not an API endpoint)
   enable_health_check = false
   
-  # Enable query logging for production DNS monitoring
-  enable_query_logging     = true
-  query_log_retention_days = 90  # Longer retention for production
+  # Disable query logging temporarily due to ARN permission issues
+  enable_query_logging     = false
+  query_log_retention_days = 90  # Will be used when query logging is re-enabled
   
   # SNS topics for production DNS monitoring (add actual ARNs when available)
   sns_topic_arns = []  # TODO: Add production SNS topic ARNs for DNS alerts
