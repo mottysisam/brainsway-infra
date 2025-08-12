@@ -24,13 +24,21 @@
 ```
 infra/
 ├─ modules/                  # Pure Terraform modules
+│  ├─ apigw_http_proxy/     # HTTP API Gateway v2 with security hardening  
+│  ├─ route53/              # DNS delegation (subzone + delegate_subzone)
+│  ├─ acm/cert_dns/         # SSL certificates with DNS validation
+│  ├─ lambda/router/        # API router with environment variables
+│  └─ wafv2/web_acl/        # WAF security (production)
 └─ live/                     # Terragrunt per env/region/stack
    ├─ dev/ ├─ staging/ └─ prod/
-       └─ us-east-2/<stack>/terragrunt.hcl
+       └─ us-east-2/
+          ├─ api-gateway-v2/   # HTTP API Gateway v2 stack
+          └─ apigw-http/       # DNS delegation stack
 .github/workflows/           # iac.yml (+ prod-import.yml optional)
-digger.yml                   # Digger config
+digger.yml                   # Digger config with multi-env support
 bootstrap/                   # one-off TF for state + OIDC
-import_maps/                 # optional import maps (prod adoption)
+MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
+plans/                       # Execution plans per CLAUDE.md protocol
 ```
 
 ## State & provider (must hold)
@@ -80,8 +88,12 @@ import_maps/                 # optional import maps (prod adoption)
 
    * Remind to export the right `AWS_PROFILE` locally and verify with `aws sts get-caller-identity`.
 4. **Make changes** under `infra/live/<env>/<region>/<stack>` using modules in `infra/modules/*`.
-5. **Open PR** and rely on Digger for plans. Use `/digger apply` only for **dev/staging** after approval. **Never** apply prod.
-6. **CI/CD Tracking Protocol**
+5. **Configuration validation**
+   * For multi-account API Gateway DNS: Replace `PARENT_ZONE_ID` placeholder in prod delegation configs
+   * Verify cross-account IAM roles exist: `TerraformCrossAccountRole` in each account
+   * Use deployment guide: `MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md`
+6. **Open PR** and rely on Digger for plans. Use `/digger apply` only for **dev/staging** after approval. **Never** apply prod.
+7. **CI/CD Tracking Protocol**
 
    * **MANDATORY**: After every commit/push, track CI until completion and report results.
    * If CI passes ✅: Simply notify "CI passed successfully"
@@ -90,7 +102,7 @@ import_maps/                 # optional import maps (prod adoption)
    * Use `gh run list --branch <branch> --limit 2` and `gh run view <run-id> --log` for monitoring
    * This ensures code quality and prevents broken workflows from being merged
 
-7. **Branch Protection & Required Status Checks**
+8. **Branch Protection & Required Status Checks**
 
    * **Main branch protection**: Enabled with required status checks
    * **Required checks**: 
@@ -100,6 +112,32 @@ import_maps/                 # optional import maps (prod adoption)
    * **Status check behavior**: PRs cannot be merged until all required checks pass
    * **Strict mode**: Branches must be up-to-date before merging
    * **Check visibility**: All CI/CD workflows appear as status checks in PR interface
+
+## Multi-Account API Gateway DNS (LIVE)
+
+* **HTTP API Gateway v2** infrastructure with DNS delegation across accounts
+* **DNS Strategy**:
+  * `dev.brainsway.cloud` → delegated to dev account (824357028182)
+  * `staging.brainsway.cloud` → delegated to staging account (574210586915)  
+  * `api.brainsway.cloud` → production account (154948530138) apex domain
+
+### New infra paths (active)
+
+```
+infra/live/<env>/us-east-2/apigw-http/route53/          # DNS subzones
+infra/live/prod/us-east-2/apigw-http/delegate-route53-*/ # DNS delegations
+```
+
+### Deployment dependencies (CRITICAL ORDER)
+
+1. **Subzones first**: `dev/staging apigw-http/route53` → creates hosted zones
+2. **Delegations second**: `prod apigw-http/delegate-route53-*` → uses remote state from (1)
+3. **Certificates third**: `*/api-gateway-v2/acm` → requires functioning DNS delegation
+4. **APIs last**: `*/api-gateway-v2/api-gateway` → requires certificates
+
+### Pre-deployment config requirement
+
+* **MANDATORY**: Replace `PARENT_ZONE_ID` in delegation configs with actual brainsway.cloud zone ID
 
 ## Production adoption (import‑first)
 
