@@ -70,22 +70,22 @@ inputs = {
   }
   
   "cluster_instances" = {
-    "db-aurora-1-dev-instance-1" = {
+    "db-aurora-1-dev-writer" = {
       "cluster_identifier" = "db-aurora-1-dev"
       "engine" = "aurora-postgresql"
       "instance_class" = "db.serverless"  # Required for Serverless v2
       "tags" = {
-        "Name" = "db-aurora-1-dev-instance-1"
+        "Name" = "db-aurora-1-dev-writer"
         "Environment" = "dev"
         "Type" = "Aurora Serverless v2 Writer"
       }
     }
-    "insight-production-db-dev-instance-1" = {
+    "insight-production-db-dev-writer" = {
       "cluster_identifier" = "insight-production-db-dev"
       "engine" = "aurora-postgresql"
       "instance_class" = "db.serverless"  # Required for Serverless v2
       "tags" = {
-        "Name" = "insight-production-db-dev-instance-1"
+        "Name" = "insight-production-db-dev-writer"
         "Environment" = "dev"
         "Type" = "Aurora Serverless v2 Writer"
       }
