@@ -2,7 +2,7 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 # Create the delegated hosted zone for the subdomain
-resource "aws_route53_hosted_zone" "subzone" {
+resource "aws_route53_zone" "subzone" {
   name          = var.domain_name
   comment       = var.comment != null ? var.comment : "Delegated zone for ${var.environment} environment - ${var.domain_name}"
   force_destroy = var.force_destroy
@@ -31,10 +31,10 @@ resource "aws_cloudwatch_log_group" "query_logs" {
 
 # Route53 query logging configuration (if enabled)
 resource "aws_route53_query_log" "subzone" {
-  count                    = var.enable_query_logging ? 1 : 0
-  depends_on              = [aws_cloudwatch_log_group.query_logs]
-  destination_arn         = aws_cloudwatch_log_group.query_logs[0].arn
-  hosted_zone_id          = aws_route53_hosted_zone.subzone.zone_id
+  count           = var.enable_query_logging ? 1 : 0
+  depends_on      = [aws_cloudwatch_log_group.query_logs]
+  destination_arn = aws_cloudwatch_log_group.query_logs[0].arn
+  zone_id         = aws_route53_zone.subzone.zone_id
 }
 
 # Health check for the API endpoint (if enabled)
@@ -47,7 +47,6 @@ resource "aws_route53_health_check" "api" {
   failure_threshold              = 3
   request_interval               = 30
   measure_latency                = true
-  cloudwatch_logs_region         = data.aws_region.current.name
   cloudwatch_alarm_region        = data.aws_region.current.name
   insufficient_data_health_status = "Failure"
   
@@ -109,12 +108,12 @@ resource "aws_cloudwatch_metric_alarm" "health_check_latency" {
 
 # Output formatted name servers for easy delegation
 locals {
-  name_servers_formatted = join("\\n", aws_route53_hosted_zone.subzone.name_servers)
+  name_servers_formatted = join("\\n", aws_route53_zone.subzone.name_servers)
 }
 
 # Create a text record with delegation instructions (for reference)
 resource "aws_route53_record" "delegation_info" {
-  zone_id = aws_route53_hosted_zone.subzone.zone_id
+  zone_id = aws_route53_zone.subzone.zone_id
   name    = "_delegation-info.${var.domain_name}"
   type    = "TXT"
   ttl     = 300

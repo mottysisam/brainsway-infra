@@ -1,17 +1,17 @@
 # Hosted Zone Outputs
 output "zone_id" {
   description = "The hosted zone ID of the subdomain"
-  value       = aws_route53_hosted_zone.subzone.zone_id
+  value       = aws_route53_zone.subzone.zone_id
 }
 
 output "zone_arn" {
   description = "The ARN of the hosted zone"
-  value       = aws_route53_hosted_zone.subzone.arn
+  value       = aws_route53_zone.subzone.arn
 }
 
 output "name_servers" {
   description = "List of name servers for the subdomain (for delegation)"
-  value       = aws_route53_hosted_zone.subzone.name_servers
+  value       = aws_route53_zone.subzone.name_servers
 }
 
 output "name_servers_formatted" {
@@ -21,12 +21,12 @@ output "name_servers_formatted" {
 
 output "domain_name" {
   description = "The domain name of the subdomain"
-  value       = aws_route53_hosted_zone.subzone.name
+  value       = aws_route53_zone.subzone.name
 }
 
 output "fqdn" {
   description = "Fully qualified domain name of the subdomain"
-  value       = trimsuffix(aws_route53_hosted_zone.subzone.name, ".")
+  value       = trimsuffix(aws_route53_zone.subzone.name, ".")
 }
 
 # Health Check Outputs
@@ -61,7 +61,7 @@ output "delegation_instructions" {
   description = "Instructions for delegating this subdomain from the parent zone"
   value = {
     subdomain    = var.domain_name
-    name_servers = aws_route53_hosted_zone.subzone.name_servers
+    name_servers = aws_route53_zone.subzone.name_servers
     record_type  = "NS"
     ttl          = "300"
     instructions = "Create NS record in parent zone for '${var.domain_name}' pointing to these name servers"
@@ -72,9 +72,9 @@ output "delegation_instructions" {
 output "dns_configuration" {
   description = "Complete DNS configuration details"
   value = {
-    zone_id           = aws_route53_hosted_zone.subzone.zone_id
-    domain_name       = aws_route53_hosted_zone.subzone.name
-    name_servers      = aws_route53_hosted_zone.subzone.name_servers
+    zone_id           = aws_route53_zone.subzone.zone_id
+    domain_name       = aws_route53_zone.subzone.name
+    name_servers      = aws_route53_zone.subzone.name_servers
     environment       = var.environment
     health_check_enabled = var.enable_health_check
     query_logging_enabled = var.enable_query_logging
@@ -98,11 +98,11 @@ output "monitoring_info" {
 output "subzone_summary" {
   description = "Summary of the created subzone"
   value = {
-    zone_id      = aws_route53_hosted_zone.subzone.zone_id
-    domain       = trimsuffix(aws_route53_hosted_zone.subzone.name, ".")
+    zone_id      = aws_route53_zone.subzone.zone_id
+    domain       = trimsuffix(aws_route53_zone.subzone.name, ".")
     environment  = var.environment
-    name_servers = aws_route53_hosted_zone.subzone.name_servers
-    api_endpoint = "api.${trimsuffix(aws_route53_hosted_zone.subzone.name, ".")}"
-    created_date = aws_route53_hosted_zone.subzone.tags["ManagedBy"]
+    name_servers = aws_route53_zone.subzone.name_servers
+    api_endpoint = "api.${trimsuffix(aws_route53_zone.subzone.name, ".")}"
+    created_date = aws_route53_zone.subzone.tags["ManagedBy"]
   }
 }

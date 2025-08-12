@@ -16,12 +16,7 @@ resource "aws_acm_certificate" "this" {
     certificate_transparency_logging_preference = var.certificate_transparency_logging_preference
   }
   
-  # Auto-renewal configuration
-  dynamic "options" {
-    for_each = var.early_renewal_duration != null ? [1] : []
-    content {
-      certificate_transparency_logging_preference = var.certificate_transparency_logging_preference
-    }
+  # Note: early_renewal_duration is configured separately, not in options block
   }
   
   lifecycle {
