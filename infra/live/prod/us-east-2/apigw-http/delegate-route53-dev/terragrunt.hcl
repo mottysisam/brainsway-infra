@@ -6,7 +6,7 @@ include "root" {
 }
 
 terraform {
-  source = "../../../../modules/route53/delegate_subzone"
+  source = "../../../../../modules/route53/delegate_subzone"
 }
 
 # NOTE: Dev subzone dependency disabled for initial deployment
