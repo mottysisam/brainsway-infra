@@ -1,27 +1,27 @@
 # Delegation Record Outputs
 output "delegation_record_name" {
   description = "The name of the NS record created for delegation"
-  value       = aws_route53_record.delegation.name
+  value       = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].name : null
 }
 
 output "delegation_record_fqdn" {
   description = "The FQDN of the NS record created for delegation"
-  value       = trimsuffix(aws_route53_record.delegation.name, ".")
+  value       = length(aws_route53_record.delegation) > 0 ? trimsuffix(aws_route53_record.delegation[0].name, ".") : null
 }
 
 output "delegation_record_type" {
   description = "The record type of the delegation (NS)"
-  value       = aws_route53_record.delegation.type
+  value       = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].type : null
 }
 
 output "delegation_name_servers" {
   description = "The name servers that the subdomain is delegated to"
-  value       = aws_route53_record.delegation.records
+  value       = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].records : []
 }
 
 output "delegation_ttl" {
   description = "The TTL of the delegation NS record"
-  value       = aws_route53_record.delegation.ttl
+  value       = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].ttl : null
 }
 
 # Parent Zone Information
@@ -32,22 +32,12 @@ output "parent_zone_id" {
 
 output "parent_zone_name" {
   description = "The parent zone name"
-  value = local.has_zone_id ? (
-    data.aws_route53_zone.parent[0].name
-  ) : (
-    data.aws_route53_zone.parent_by_name[0].name
-  )
+  value = local.has_zone_id && length(data.aws_route53_zone.parent) > 0 ? data.aws_route53_zone.parent[0].name : (local.has_domain && length(data.aws_route53_zone.parent_by_name) > 0 ? data.aws_route53_zone.parent_by_name[0].name : null)
 }
 
 output "parent_zone_fqdn" {
   description = "The parent zone FQDN (without trailing dot)"
-  value = trimsuffix(
-    local.has_zone_id ? (
-      data.aws_route53_zone.parent[0].name
-    ) : (
-      data.aws_route53_zone.parent_by_name[0].name
-    ), "."
-  )
+  value = local.has_zone_id && length(data.aws_route53_zone.parent) > 0 ? trimsuffix(data.aws_route53_zone.parent[0].name, ".") : (local.has_domain && length(data.aws_route53_zone.parent_by_name) > 0 ? trimsuffix(data.aws_route53_zone.parent_by_name[0].name, ".") : null)
 }
 
 # Validation and Monitoring Outputs
@@ -74,12 +64,12 @@ output "cloudwatch_alarm_name" {
 # Metadata Record Output
 output "delegation_metadata_record" {
   description = "The TXT record containing delegation metadata"
-  value = {
-    name    = aws_route53_record.delegation_metadata.name
-    type    = aws_route53_record.delegation_metadata.type
-    ttl     = aws_route53_record.delegation_metadata.ttl
-    records = aws_route53_record.delegation_metadata.records
-  }
+  value = length(aws_route53_record.delegation_metadata) > 0 ? {
+    name    = aws_route53_record.delegation_metadata[0].name
+    type    = aws_route53_record.delegation_metadata[0].type
+    ttl     = aws_route53_record.delegation_metadata[0].ttl
+    records = aws_route53_record.delegation_metadata[0].records
+  } : null
 }
 
 # Environment and Configuration
@@ -98,13 +88,10 @@ output "delegation_summary" {
   description = "Complete summary of the delegation configuration"
   value = {
     subdomain           = var.subdomain_name
-    parent_zone         = trimsuffix(
-      local.has_zone_id ? data.aws_route53_zone.parent[0].name : data.aws_route53_zone.parent_by_name[0].name,
-      "."
-    )
+    parent_zone         = local.has_zone_id && length(data.aws_route53_zone.parent) > 0 ? trimsuffix(data.aws_route53_zone.parent[0].name, ".") : (local.has_domain && length(data.aws_route53_zone.parent_by_name) > 0 ? trimsuffix(data.aws_route53_zone.parent_by_name[0].name, ".") : "none")
     parent_zone_id      = local.parent_zone_id
-    name_servers        = aws_route53_record.delegation.records
-    ttl                 = aws_route53_record.delegation.ttl
+    name_servers        = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].records : []
+    ttl                 = length(aws_route53_record.delegation) > 0 ? aws_route53_record.delegation[0].ttl : null
     environment         = var.environment
     validation_enabled  = var.enable_delegation_validation
     monitoring_enabled  = var.enable_delegation_monitoring
@@ -134,8 +121,13 @@ output "validation_info" {
     validation_method = "DNS resolution test using dig"
     expected_ns_count = length(var.subdomain_name_servers)
     validated_ns      = local.validated_name_servers
+    reason            = null
   } : {
-    enabled = false
-    reason  = "Validation disabled via enable_delegation_validation = false"
+    enabled           = false
+    timeout_seconds   = null
+    validation_method = null
+    expected_ns_count = null
+    validated_ns      = null
+    reason            = "Validation disabled via enable_delegation_validation = false"
   }
 }

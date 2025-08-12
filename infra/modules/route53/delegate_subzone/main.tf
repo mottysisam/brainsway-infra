@@ -3,12 +3,12 @@ data "aws_region" "current" {}
 
 # Validation that exactly one of parent_zone_id or parent_domain_name is provided
 locals {
-  has_zone_id    = var.parent_zone_id != null
-  has_domain     = var.parent_domain_name != null
+  has_zone_id    = var.parent_zone_id != null && var.parent_zone_id != ""
+  has_domain     = var.parent_domain_name != null && var.parent_domain_name != ""
   valid_config   = (local.has_zone_id && !local.has_domain) || (!local.has_zone_id && local.has_domain)
   
   # Determine the actual zone ID to use
-  parent_zone_id = local.has_zone_id ? var.parent_zone_id : data.aws_route53_zone.parent_by_name[0].zone_id
+  parent_zone_id = local.has_zone_id ? var.parent_zone_id : (local.has_domain ? data.aws_route53_zone.parent_by_name[0].zone_id : "")
 }
 
 # Validation check
@@ -34,8 +34,9 @@ data "aws_route53_zone" "parent_by_name" {
   private_zone = false
 }
 
-# Create NS record in parent zone for delegation
+# Create NS record in parent zone for delegation (only if parent zone exists)
 resource "aws_route53_record" "delegation" {
+  count      = local.valid_config && local.parent_zone_id != "" ? 1 : 0
   depends_on = [null_resource.validate_parent_config]
   
   zone_id = local.parent_zone_id
@@ -57,9 +58,9 @@ resource "aws_route53_record" "delegation" {
   }
 }
 
-# Validation script to check if delegation is working
+# Validation script to check if delegation is working (only when delegation record exists)
 resource "null_resource" "delegation_validation" {
-  count = var.enable_delegation_validation ? 1 : 0
+  count = var.enable_delegation_validation && local.valid_config && local.parent_zone_id != "" ? 1 : 0
   
   depends_on = [aws_route53_record.delegation]
   
@@ -106,9 +107,9 @@ resource "null_resource" "delegation_validation" {
   }
 }
 
-# Optional health check to monitor delegation health
+# Optional health check to monitor delegation health (only when delegation record exists)
 resource "aws_route53_health_check" "delegation_health" {
-  count = var.enable_delegation_monitoring ? 1 : 0
+  count = var.enable_delegation_monitoring && local.valid_config && local.parent_zone_id != "" ? 1 : 0
   
   type                            = "CALCULATED"
   cloudwatch_alarm_region         = data.aws_region.current.name
@@ -127,7 +128,7 @@ resource "aws_route53_health_check" "delegation_health" {
 
 # CloudWatch alarm for delegation health failures
 resource "aws_cloudwatch_metric_alarm" "delegation_health_alarm" {
-  count = var.enable_delegation_monitoring ? 1 : 0
+  count = var.enable_delegation_monitoring && local.valid_config && local.parent_zone_id != "" ? 1 : 0
   
   alarm_name          = "route53-delegation-failed-${var.environment}-${replace(var.subdomain_name, ".", "-")}"
   comparison_operator = "LessThanThreshold"
@@ -152,8 +153,9 @@ resource "aws_cloudwatch_metric_alarm" "delegation_health_alarm" {
   })
 }
 
-# Create a TXT record in parent zone documenting the delegation
+# Create a TXT record in parent zone documenting the delegation (only when parent zone exists)
 resource "aws_route53_record" "delegation_metadata" {
+  count      = local.valid_config && local.parent_zone_id != "" ? 1 : 0
   depends_on = [null_resource.validate_parent_config]
   
   zone_id = local.parent_zone_id

@@ -18,9 +18,9 @@ inputs = {
     "*.brainsway.cloud"  # Wildcard for all subdomains
   ]
   
-  # DNS validation - using existing brainsway.cloud zone
-  # TODO: Replace with actual production Route53 zone ID
-  route53_zone_id = "Z1D633PJN98FT9"  # Replace with actual brainsway.cloud zone ID
+  # DNS validation - skip zone lookup for initial deployment
+  # TODO: Replace with actual production Route53 zone ID when available
+  route53_zone_id = ""  # Empty to skip zone lookup during initial deployment
   validation_timeout = "15m"  # Longer timeout for production
   
   # Security configuration (production-grade)

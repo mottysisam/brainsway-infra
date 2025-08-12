@@ -9,8 +9,8 @@ terraform {
 
 locals {
   
-  # Parent zone configuration
-  parent_zone_id = "Z1D633PJN98FT9"  # TODO: Replace with actual brainsway.cloud zone ID
+  # Parent zone configuration - skip zone lookup for initial deployment  
+  parent_zone_id = ""  # Empty to skip zone lookup during initial deployment
   
   # Subdomain delegations configuration
   # NOTE: These name servers should come from the dev and staging Route53 subzone outputs
