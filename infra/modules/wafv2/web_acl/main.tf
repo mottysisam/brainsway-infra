@@ -231,17 +231,23 @@ resource "aws_wafv2_web_acl" "this" {
           name        = rule.value.name
           vendor_name = rule.value.vendor_name
           
-          # Excluded rules
-          dynamic "excluded_rule" {
-            for_each = rule.value.excluded_rules
-            content {
-              name = excluded_rule.value
-            }
-          }
+          # Excluded rules (deprecated - use rule_action_override instead)
+          # dynamic "excluded_rule" {
+          #   for_each = rule.value.excluded_rules
+          #   content {
+          #     name = excluded_rule.value
+          #   }
+          # }
           
-          # Rule action overrides
+          # Rule action overrides (including excluded rules as count actions)
           dynamic "rule_action_override" {
-            for_each = rule.value.rule_action_overrides
+            for_each = concat(
+              rule.value.rule_action_overrides,
+              [for excluded in rule.value.excluded_rules : {
+                name = excluded
+                action = "count"
+              }]
+            )
             content {
               name = rule_action_override.value.name
               action_to_use {
