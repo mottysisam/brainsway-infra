@@ -28,8 +28,8 @@ output "custom_domain" {
 output "custom_domain_configuration" {
   description = "Custom domain configuration details"
   value = {
-    api_gateway_domain_name = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].api_gateway_domain_name
-    hosted_zone_id          = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].hosted_zone_id
+    api_gateway_domain_name = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.target_domain_name
+    hosted_zone_id          = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.hosted_zone_id
     certificate_arn         = var.certificate_arn
     endpoint_type           = "REGIONAL"
     security_policy         = "TLS_1_2"

@@ -171,11 +171,8 @@ resource "aws_apigatewayv2_api_mapping" "mapping" {
   stage       = aws_apigatewayv2_stage.stage.name
 }
 
-# Get domain name configuration details for Route53 records
-data "aws_apigatewayv2_domain_name" "dn" {
-  domain_name = aws_apigatewayv2_domain_name.domain.domain_name
-  depends_on  = [aws_apigatewayv2_domain_name.domain]
-}
+# Domain name configuration details are available directly from the resource
+# No need for separate data source
 
 # Alias A record in Route53 pointing to API Gateway
 resource "aws_route53_record" "alias_a" {
@@ -184,8 +181,8 @@ resource "aws_route53_record" "alias_a" {
   type    = "A"
   
   alias {
-    name                   = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].api_gateway_domain_name
-    zone_id                = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].hosted_zone_id
+    name                   = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.target_domain_name
+    zone_id                = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.hosted_zone_id
     evaluate_target_health = false
   }
 }
@@ -197,8 +194,8 @@ resource "aws_route53_record" "alias_aaaa" {
   type    = "AAAA"
   
   alias {
-    name                   = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].api_gateway_domain_name
-    zone_id                = data.aws_apigatewayv2_domain_name.dn.domain_name_configurations[0].hosted_zone_id
+    name                   = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.target_domain_name
+    zone_id                = aws_apigatewayv2_domain_name.domain.domain_name_configuration.0.hosted_zone_id
     evaluate_target_health = false
   }
 }
