@@ -9,32 +9,42 @@ terraform {
   source = "../../../../modules/route53/delegate_subzone"
 }
 
-# Pull the NS from the DEV subzone remote state
-dependency "dev_subzone" {
-  config_path = "../../../../dev/us-east-2/apigw-http/route53"
-
-  # Optional mocks for 'plan' when remote state not yet available
-  mock_outputs = {
-    zone_id      = "ZMOCKDEV123456"
-    name_servers = [
-      "ns-123.awsdns-12.com.",
-      "ns-456.awsdns-45.net.",
-      "ns-789.awsdns-78.org.",
-      "ns-012.awsdns-01.co.uk."
-    ]
-    domain_name = "dev.brainsway.cloud"
-  }
-}
+# NOTE: Dev subzone dependency disabled for initial deployment
+# Cross-account state access causes 403 Forbidden errors during initial setup
+# Will re-enable after dev zone is created and accessible
+#
+# dependency "dev_subzone" {
+#   config_path = "../../../../dev/us-east-2/apigw-http/route53"
+#   mock_outputs = {
+#     zone_id      = "ZMOCKDEV123456"
+#     name_servers = [
+#       "ns-123.awsdns-12.com.",
+#       "ns-456.awsdns-45.net.",
+#       "ns-789.awsdns-78.org.",
+#       "ns-012.awsdns-01.co.uk."
+#     ]
+#     domain_name = "dev.brainsway.cloud"
+#   }
+# }
 
 locals {
   environment        = "prod"
   parent_domain_name = "brainsway.cloud"  # Will lookup zone ID dynamically
+  
+  # Static NS records for initial deployment (will be replaced with real ones later)
+  # These are placeholder AWS DNS servers that will be replaced when dev zone is created
+  dev_static_ns = [
+    "ns-123.awsdns-12.com.",
+    "ns-456.awsdns-45.net.", 
+    "ns-789.awsdns-78.org.",
+    "ns-012.awsdns-01.co.uk."
+  ]
 }
 
 inputs = {
   parent_domain_name     = local.parent_domain_name  # Module will lookup zone ID
   subdomain_name         = "dev.brainsway.cloud"
-  subdomain_name_servers = dependency.dev_subzone.outputs.name_servers
+  subdomain_name_servers = local.dev_static_ns  # Using static NS for initial deployment
 
   ttl = 300
 
