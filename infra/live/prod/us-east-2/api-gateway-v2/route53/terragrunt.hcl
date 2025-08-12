@@ -9,14 +9,8 @@ terraform {
   source = "../../../../../modules/route53/subzone"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Domain configuration - using existing brainsway.cloud
   domain_name = "brainsway.cloud"
@@ -25,7 +19,7 @@ locals {
 inputs = {
   # Domain configuration - this should match existing zone
   domain_name     = local.domain_name
-  environment     = local.env
+  environment     = "prod"
   comment         = "Production hosted zone for brainsway.cloud with API Gateway monitoring"
   force_destroy   = false  # NEVER allow destruction in production
   
@@ -45,7 +39,7 @@ inputs = {
   # Production tags (comprehensive)
   tags = {
     Name         = local.domain_name
-    Environment  = local.env
+    Environment  = "prod"
     Purpose      = "Production DNS Zone"
     Type         = "Primary Zone"
     ManagedBy    = "Terragrunt"

@@ -6,23 +6,17 @@ terraform {
   source = "../../../../../modules/lambda/router"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Function configuration
-  function_name = "brainsway-api-router-${local.env}"
+  function_name = "brainsway-api-router-${"staging"}"
 }
 
 inputs = {
   # Lambda function configuration
   function_name     = local.function_name
-  environment      = local.env
+  environment      = "staging"
   lambda_runtime   = "python3.11"
   lambda_handler   = "index.handler"
   lambda_timeout   = 30
@@ -34,7 +28,7 @@ inputs = {
   
   # Environment variables
   environment_variables = {
-    ENVIRONMENT     = local.env
+    ENVIRONMENT     = "staging"
     API_DOMAIN      = "api.staging.brainsway.cloud"
     LOG_LEVEL       = "INFO"
     CORS_ORIGINS    = "https://staging.brainsway.cloud,https://app-staging.brainsway.cloud"  # More restrictive
@@ -62,7 +56,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.function_name
-    Environment = local.env
+    Environment = "staging"
     Runtime     = "python3.11"
     Purpose     = "API Router"
     ManagedBy   = "Terragrunt"

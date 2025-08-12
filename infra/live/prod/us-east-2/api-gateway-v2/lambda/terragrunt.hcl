@@ -6,23 +6,17 @@ terraform {
   source = "../../../../../modules/lambda/router"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Function configuration for production
-  function_name = "brainsway-api-router-${local.env}"
+  function_name = "brainsway-api-router-${"prod"}"
 }
 
 inputs = {
   # Lambda function configuration (production-grade)
   function_name     = local.function_name
-  environment      = local.env
+  environment      = "prod"
   lambda_runtime   = "python3.11"
   lambda_handler   = "index.handler"
   lambda_timeout   = 30
@@ -35,7 +29,7 @@ inputs = {
   
   # Environment variables (production configuration)
   environment_variables = {
-    ENVIRONMENT     = local.env
+    ENVIRONMENT     = "prod"
     API_DOMAIN      = "api.brainsway.cloud"
     LOG_LEVEL       = "WARN"  # Less verbose logging in production
     CORS_ORIGINS    = "https://brainsway.cloud,https://app.brainsway.cloud"  # Strict CORS
@@ -79,7 +73,7 @@ inputs = {
   # Production tags (comprehensive)
   tags = {
     Name         = local.function_name
-    Environment  = local.env
+    Environment  = "prod"
     Runtime      = "python3.11"
     Purpose      = "Production API Router"
     ManagedBy    = "Terragrunt"

@@ -6,17 +6,11 @@ terraform {
   source = "../../../../../modules/wafv2/web_acl"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # WAF configuration
-  waf_name = "brainsway-api-waf-${local.env}"
+  waf_name = "brainsway-api-waf-${"staging"}"
 }
 
 # Dependencies
@@ -36,9 +30,9 @@ dependency "api_gateway" {
 inputs = {
   # WAF configuration
   name        = local.waf_name
-  environment = local.env
+  environment = "staging"
   scope       = "REGIONAL"  # For API Gateway
-  description = "WAF for ${local.env} API Gateway protection - production-like rules"
+  description = "WAF for ${"staging"} API Gateway protection - production-like rules"
   
   # Default action (allow by default, block malicious traffic)
   default_action = "allow"
@@ -111,7 +105,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.waf_name
-    Environment = local.env
+    Environment = "staging"
     Purpose     = "API Protection"
     Scope       = "REGIONAL"
     ManagedBy   = "Terragrunt"

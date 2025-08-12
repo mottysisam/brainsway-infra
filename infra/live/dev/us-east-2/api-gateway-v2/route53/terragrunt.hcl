@@ -6,14 +6,8 @@ terraform {
   source = "../../../../../modules/route53/subzone"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Domain configuration
   subdomain_name = "dev.brainsway.cloud"
@@ -22,8 +16,8 @@ locals {
 inputs = {
   # Subdomain configuration
   domain_name     = local.subdomain_name
-  environment     = local.env
-  comment         = "Delegated hosted zone for ${local.env} environment API Gateway"
+  environment     = "dev"
+  comment         = "Delegated hosted zone for ${"dev"} environment API Gateway"
   force_destroy   = true  # Allow destruction in dev environment
   
   # Health check configuration
@@ -42,7 +36,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.subdomain_name
-    Environment = local.env
+    Environment = "dev"
     Purpose     = "DNS Delegation"
     Type        = "Subzone"
     ManagedBy   = "Terragrunt"

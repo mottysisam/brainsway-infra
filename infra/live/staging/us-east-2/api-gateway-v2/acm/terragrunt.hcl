@@ -6,14 +6,8 @@ terraform {
   source = "../../../../../modules/acm/cert_dns"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Domain configuration
   domain_name = "api.staging.brainsway.cloud"
@@ -55,12 +49,12 @@ inputs = {
   monitoring_sns_topic_arns     = []  # TODO: Add SNS topic ARN for alerts
   
   # Environment
-  environment = local.env
+  environment = "staging"
   
   # Tags
   tags = {
     Name        = "${local.domain_name}-certificate"
-    Environment = local.env
+    Environment = "staging"
     Purpose     = "API Gateway SSL"
     Domain      = local.domain_name
     ManagedBy   = "Terragrunt"

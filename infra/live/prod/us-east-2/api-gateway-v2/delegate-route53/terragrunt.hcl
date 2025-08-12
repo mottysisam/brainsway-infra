@@ -6,14 +6,8 @@ terraform {
   source = "../../../../../modules/route53/delegate_subzone"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # Parent zone configuration
   parent_zone_id = "Z1D633PJN98FT9"  # TODO: Replace with actual brainsway.cloud zone ID
@@ -65,7 +59,7 @@ inputs = {
   # Production tags for delegation management
   tags = {
     Name           = "dev.brainsway.cloud-delegation"
-    Environment    = local.env
+    Environment    = "prod"
     Purpose        = "DNS Delegation to Dev Account"
     Type           = "Delegation Record"
     ManagedBy      = "Terragrunt"

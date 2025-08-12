@@ -6,17 +6,11 @@ terraform {
   source = "../../../../../modules/wafv2/web_acl"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # WAF configuration for production
-  waf_name = "brainsway-api-waf-${local.env}"
+  waf_name = "brainsway-api-waf-${"prod"}"
 }
 
 # Dependencies
@@ -36,7 +30,7 @@ dependency "api_gateway" {
 inputs = {
   # WAF configuration (production-grade security)
   name        = local.waf_name
-  environment = local.env
+  environment = "prod"
   scope       = "REGIONAL"  # For API Gateway
   description = "Production WAF for Brainsway API Gateway - comprehensive security rules"
   
@@ -165,7 +159,7 @@ inputs = {
   # Comprehensive production tags
   tags = {
     Name         = local.waf_name
-    Environment  = local.env
+    Environment  = "prod"
     Purpose      = "Production API Protection"
     Scope        = "REGIONAL"
     ManagedBy    = "Terragrunt"

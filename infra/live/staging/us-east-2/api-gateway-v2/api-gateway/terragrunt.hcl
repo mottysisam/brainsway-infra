@@ -6,17 +6,11 @@ terraform {
   source = "../../../../../modules/apigw_http_proxy"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # API configuration
-  api_name    = "brainsway-api-${local.env}"
+  api_name    = "brainsway-api-${"staging"}"
   domain_name = "api.staging.brainsway.cloud"
 }
 
@@ -58,8 +52,8 @@ dependency "lambda" {
 inputs = {
   # API Gateway configuration
   api_name        = local.api_name
-  environment     = local.env
-  api_description = "HTTP API Gateway for ${local.env} environment"
+  environment     = "staging"
+  api_description = "HTTP API Gateway for ${"staging"} environment"
   
   # Lambda integration
   lambda_invoke_arn = dependency.lambda.outputs.invoke_arn
@@ -126,7 +120,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.api_name
-    Environment = local.env
+    Environment = "staging"
     Domain      = local.domain_name
     Purpose     = "API Gateway"
     ManagedBy   = "Terragrunt"

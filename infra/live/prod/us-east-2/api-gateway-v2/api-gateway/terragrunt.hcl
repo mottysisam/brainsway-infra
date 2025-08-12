@@ -6,17 +6,11 @@ terraform {
   source = "../../../../../modules/apigw_http_proxy"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
 
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
   
   # API configuration for production
-  api_name    = "brainsway-api-${local.env}"
+  api_name    = "brainsway-api-${"prod"}"
   domain_name = "api.brainsway.cloud"
 }
 
@@ -58,7 +52,7 @@ dependency "lambda" {
 inputs = {
   # API Gateway configuration (production-grade)
   api_name        = local.api_name
-  environment     = local.env
+  environment     = "prod"
   api_description = "Production HTTP API Gateway for Brainsway API"
   
   # Lambda integration
@@ -127,7 +121,7 @@ inputs = {
   # Production tags (comprehensive)
   tags = {
     Name         = local.api_name
-    Environment  = local.env
+    Environment  = "prod"
     Domain       = local.domain_name
     Purpose      = "Production API Gateway"
     ManagedBy    = "Terragrunt"

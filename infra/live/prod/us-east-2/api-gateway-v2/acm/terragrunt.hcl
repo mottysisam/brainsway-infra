@@ -6,16 +6,8 @@ terraform {
   source = "../../../../../modules/acm/cert_dns"
 }
 
-# Get environment configuration
-include "env" {
-  path = "${dirname(find_in_parent_folders())}/env.hcl"
-}
-
 locals {
-  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  env      = local.env_vars.locals.env
-  
-  # Domain configuration for production
+  # Domain configuration for production  
   domain_name = "api.brainsway.cloud"
 }
 
@@ -47,13 +39,13 @@ inputs = {
   allow_cross_account_access = false
   cross_account_principal_arns = []  # Add if needed for cross-account access
   
-  # Environment
-  environment = local.env
+  # Environment (will be provided via root terragrunt.hcl default tags)
+  environment = "prod"
   
   # Production tags (comprehensive)
   tags = {
     Name         = "${local.domain_name}-certificate"
-    Environment  = local.env
+    Environment  = "prod"
     Purpose      = "Production API Gateway SSL"
     Domain       = local.domain_name
     ManagedBy    = "Terragrunt"
