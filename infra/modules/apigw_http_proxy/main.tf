@@ -52,36 +52,9 @@ resource "aws_apigatewayv2_route" "default" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-# Optional health check route with direct response
-resource "aws_apigatewayv2_integration" "health" {
-  count            = var.enable_health_endpoint ? 1 : 0
-  api_id           = aws_apigatewayv2_api.this.id
-  integration_type = "MOCK"
-  
-  request_templates = {
-    "application/json" = jsonencode({
-      statusCode = 200
-    })
-  }
-}
-
-resource "aws_apigatewayv2_route" "health" {
-  count     = var.enable_health_endpoint ? 1 : 0
-  api_id    = aws_apigatewayv2_api.this.id
-  route_key = "GET /health"
-  target    = "integrations/${aws_apigatewayv2_integration.health[0].id}"
-}
-
-resource "aws_apigatewayv2_route_response" "health" {
-  count              = var.enable_health_endpoint ? 1 : 0
-  api_id             = aws_apigatewayv2_api.this.id
-  route_id           = aws_apigatewayv2_route.health[0].id
-  route_response_key = "$default"
-  
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
+# Health endpoint is handled by the Lambda function
+# HTTP API Gateway v2 only supports proxy integrations (AWS_PROXY, HTTP_PROXY)
+# MOCK integrations are not supported, so we rely on the Lambda proxy for /health
 
 # CloudWatch log group for access logs
 resource "aws_cloudwatch_log_group" "api_access" {
@@ -118,7 +91,6 @@ resource "aws_apigatewayv2_stage" "stage" {
         status                 = "$context.status"
         protocol               = "$context.protocol"
         responseLength         = "$context.responseLength"
-        requestLength          = "$context.requestLength"
         integrationError       = "$context.integrationErrorMessage"
         integrationLatency     = "$context.integrationLatency"
         responseLatency        = "$context.responseLatency"

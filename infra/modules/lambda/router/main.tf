@@ -7,6 +7,7 @@ locals {
 import json
 import logging
 import os
+import time
 import traceback
 
 # Configure logging
@@ -21,59 +22,173 @@ def handler(event, context):
     """
     
     try:
-        # Log the incoming event (sanitized)
+        # Log the incoming event (sanitized) - API Gateway v2 HTTP format
         event_log = {
-            'httpMethod': event.get('httpMethod'),
-            'path': event.get('path'),
-            'resource': event.get('resource'),
+            'httpMethod': event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod')),
+            'path': event.get('rawPath', event.get('path')),
+            'resource': event.get('routeKey'),
             'stage': event.get('requestContext', {}).get('stage'),
             'requestId': event.get('requestContext', {}).get('requestId')
         }
         logger.info(f"Received event: {json.dumps(event_log)}")
         
-        # Extract request information
-        http_method = event.get('httpMethod', 'GET')
-        path = event.get('path', '/')
+        # Extract request information - API Gateway v2 HTTP format
+        http_method = event.get('requestContext', {}).get('http', {}).get('method', event.get('httpMethod', 'GET'))
+        path = event.get('rawPath', event.get('path', '/'))
         stage = event.get('requestContext', {}).get('stage', 'unknown')
         headers = event.get('headers', {})
         query_params = event.get('queryStringParameters') or {}
         path_params = event.get('pathParameters') or {}
+        body = event.get('body', '')
         
-        # Basic routing logic
-        if path == '/health' or path.endswith('/health'):
+        # Comprehensive routing logic
+        if http_method == 'OPTIONS':
+            # Handle CORS preflight requests
+            return create_cors_response()
+            
+        elif path == '/health':
             return create_response(200, {
                 'status': 'healthy',
                 'timestamp': context.aws_request_id,
                 'environment': os.environ.get('ENVIRONMENT', 'unknown'),
-                'version': '1.0.0'
+                'version': '1.0.0',
+                'checks': {
+                    'lambda': 'ok',
+                    'timestamp': int(time.time()),
+                    'uptime': 'available'
+                }
             })
         
-        elif path == '/info' or path.endswith('/info'):
+        elif path == '/info':
             return create_response(200, {
                 'function_name': context.function_name,
                 'function_version': context.function_version,
                 'environment': os.environ.get('ENVIRONMENT', 'unknown'),
                 'region': os.environ.get('AWS_REGION', 'unknown'),
                 'stage': stage,
-                'request_id': context.aws_request_id
+                'request_id': context.aws_request_id,
+                'runtime': 'python3.9',
+                'memory_limit': context.memory_limit_in_mb
             })
-        
-        elif http_method == 'OPTIONS':
-            # Handle CORS preflight requests
-            return create_cors_response()
+            
+        elif path == '/version':
+            return create_response(200, {
+                'api_version': '1.0.0',
+                'lambda_version': context.function_version,
+                'environment': os.environ.get('ENVIRONMENT', 'unknown'),
+                'build_date': '2025-08-12',
+                'features': ['routing', 'cors', 'health_checks', 'user_management']
+            })
+            
+        elif path == '/metrics':
+            return create_response(200, {
+                'request_count': 1,  # This would be stored in a database in real implementation
+                'uptime_seconds': 3600,  # Mock data
+                'memory_used_mb': context.memory_limit_in_mb * 0.7,
+                'environment': os.environ.get('ENVIRONMENT', 'unknown'),
+                'timestamp': int(time.time())
+            })
+            
+        elif path == '/users':
+            if http_method == 'GET':
+                # Mock users data
+                return create_response(200, {
+                    'users': [
+                        {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'role': 'admin'},
+                        {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'role': 'user'},
+                        {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'role': 'user'}
+                    ],
+                    'total': 3,
+                    'page': int(query_params.get('page', 1)),
+                    'limit': int(query_params.get('limit', 10))
+                })
+            elif http_method == 'POST':
+                # Create new user (mock implementation)
+                try:
+                    user_data = json.loads(body) if body else {}
+                    new_user = {
+                        'id': 4,  # In real implementation, this would be generated
+                        'name': user_data.get('name', 'New User'),
+                        'email': user_data.get('email', 'user@example.com'),
+                        'role': user_data.get('role', 'user'),
+                        'created_at': int(time.time())
+                    }
+                    return create_response(201, {
+                        'message': 'User created successfully',
+                        'user': new_user
+                    })
+                except json.JSONDecodeError:
+                    return create_response(400, {'error': 'Invalid JSON in request body'})
+            else:
+                return create_response(405, {'error': f'Method {http_method} not allowed for /users'})
+                
+        elif path.startswith('/users/'):
+            # Extract user ID from path
+            user_id = path.split('/')[-1]
+            if not user_id.isdigit():
+                return create_response(400, {'error': 'Invalid user ID'})
+                
+            if http_method == 'GET':
+                # Get specific user (mock implementation)
+                mock_user = {
+                    'id': int(user_id),
+                    'name': f'User {user_id}',
+                    'email': f'user{user_id}@example.com',
+                    'role': 'user',
+                    'created_at': int(time.time()) - 86400  # Yesterday
+                }
+                return create_response(200, {'user': mock_user})
+                
+            elif http_method == 'PUT':
+                # Update user (mock implementation)
+                try:
+                    user_data = json.loads(body) if body else {}
+                    updated_user = {
+                        'id': int(user_id),
+                        'name': user_data.get('name', f'User {user_id}'),
+                        'email': user_data.get('email', f'user{user_id}@example.com'),
+                        'role': user_data.get('role', 'user'),
+                        'updated_at': int(time.time())
+                    }
+                    return create_response(200, {
+                        'message': 'User updated successfully',
+                        'user': updated_user
+                    })
+                except json.JSONDecodeError:
+                    return create_response(400, {'error': 'Invalid JSON in request body'})
+                    
+            elif http_method == 'DELETE':
+                # Delete user (mock implementation)
+                return create_response(200, {
+                    'message': f'User {user_id} deleted successfully'
+                })
+            else:
+                return create_response(405, {'error': f'Method {http_method} not allowed for /users/{user_id}'})
         
         else:
-            # Default route - return method and path information
+            # Default route - return API documentation
             return create_response(200, {
-                'message': 'API Router is working',
+                'message': 'Brainsway API Router',
                 'method': http_method,
                 'path': path,
                 'stage': stage,
                 'timestamp': context.aws_request_id,
                 'available_endpoints': [
-                    '/health - Health check endpoint',
-                    '/info - Function information',
-                    '/* - This default router'
+                    'GET /health - Health check endpoint',
+                    'GET /info - Function information',
+                    'GET /version - API version information',
+                    'GET /metrics - System metrics',
+                    'GET /users - List all users',
+                    'POST /users - Create new user',
+                    'GET /users/{id} - Get specific user',
+                    'PUT /users/{id} - Update specific user',
+                    'DELETE /users/{id} - Delete specific user'
+                ],
+                'example_requests': [
+                    'curl https://api.dev.brainsway.cloud/health',
+                    'curl https://api.dev.brainsway.cloud/users',
+                    'curl -X POST https://api.dev.brainsway.cloud/users -H "Content-Type: application/json" -d \'{"name":"John","email":"john@example.com"}\'',
+                    'curl https://api.dev.brainsway.cloud/users/1'
                 ]
             })
             
