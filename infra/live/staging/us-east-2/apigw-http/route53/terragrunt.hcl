@@ -6,7 +6,7 @@ include "root" {
 }
 
 terraform {
-  source = "../../../../modules/route53/subzone"
+  source = "../../../../../modules/route53/subzone"
 }
 
 locals {
