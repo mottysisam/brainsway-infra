@@ -266,7 +266,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 resource "aws_iam_role" "lambda_execution" {
   count = var.execution_role_arn == null ? 1 : 0
   
-  name_prefix        = "${var.function_name}-execution-"
+  name_prefix        = "${substr(var.function_name, 0, 20)}-exec-"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role[0].json
   
   tags = merge(var.tags, {

@@ -31,10 +31,10 @@ resource "aws_cloudwatch_log_group" "query_logs" {
 
 # Route53 query logging configuration (if enabled)
 resource "aws_route53_query_log" "subzone" {
-  count           = var.enable_query_logging ? 1 : 0
-  depends_on      = [aws_cloudwatch_log_group.query_logs]
-  destination_arn = aws_cloudwatch_log_group.query_logs[0].arn
-  zone_id         = aws_route53_zone.subzone.zone_id
+  count                     = var.enable_query_logging ? 1 : 0
+  depends_on                = [aws_cloudwatch_log_group.query_logs]
+  cloudwatch_log_group_arn  = aws_cloudwatch_log_group.query_logs[0].arn
+  zone_id                   = aws_route53_zone.subzone.zone_id
 }
 
 # Health check for the API endpoint (if enabled)
@@ -48,7 +48,7 @@ resource "aws_route53_health_check" "api" {
   request_interval               = 30
   measure_latency                = true
   cloudwatch_alarm_region        = data.aws_region.current.name
-  insufficient_data_health_status = "Failure"
+  insufficient_data_health_status = "LastKnownStatus"
   
   tags = merge(var.tags, {
     Name        = "api-${var.domain_name}-health-check"
