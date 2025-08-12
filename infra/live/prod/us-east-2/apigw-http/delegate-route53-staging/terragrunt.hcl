@@ -42,6 +42,7 @@ locals {
 }
 
 inputs = {
+  environment            = local.environment  # Required by delegate_subzone module
   parent_domain_name     = local.parent_domain_name  # Module will lookup zone ID
   subdomain_name         = "staging.brainsway.cloud"
   subdomain_name_servers = local.staging_static_ns  # Using static NS for initial deployment
