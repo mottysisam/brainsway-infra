@@ -1,14 +1,44 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# Get information about the parent zone
+# Validation that exactly one of parent_zone_id or parent_domain_name is provided
+locals {
+  has_zone_id    = var.parent_zone_id != null
+  has_domain     = var.parent_domain_name != null
+  valid_config   = (local.has_zone_id && !local.has_domain) || (!local.has_zone_id && local.has_domain)
+  
+  # Determine the actual zone ID to use
+  parent_zone_id = local.has_zone_id ? var.parent_zone_id : data.aws_route53_zone.parent_by_name[0].zone_id
+}
+
+# Validation check
+resource "null_resource" "validate_parent_config" {
+  lifecycle {
+    precondition {
+      condition     = local.valid_config
+      error_message = "Exactly one of parent_zone_id or parent_domain_name must be provided, not both."
+    }
+  }
+}
+
+# Get information about the parent zone by ID (legacy method)
 data "aws_route53_zone" "parent" {
+  count   = local.has_zone_id ? 1 : 0
   zone_id = var.parent_zone_id
+}
+
+# Get information about the parent zone by domain name (preferred method)
+data "aws_route53_zone" "parent_by_name" {
+  count        = local.has_domain ? 1 : 0
+  name         = var.parent_domain_name
+  private_zone = false
 }
 
 # Create NS record in parent zone for delegation
 resource "aws_route53_record" "delegation" {
-  zone_id = var.parent_zone_id
+  depends_on = [null_resource.validate_parent_config]
+  
+  zone_id = local.parent_zone_id
   name    = var.subdomain_name
   type    = "NS"
   ttl     = var.ttl
@@ -17,7 +47,11 @@ resource "aws_route53_record" "delegation" {
   # Add validation that we're not overwriting an existing delegation
   lifecycle {
     precondition {
-      condition     = data.aws_route53_zone.parent.name != var.subdomain_name
+      condition = local.has_zone_id ? (
+        data.aws_route53_zone.parent[0].name != var.subdomain_name
+      ) : (
+        data.aws_route53_zone.parent_by_name[0].name != var.subdomain_name
+      )
       error_message = "Cannot delegate to the same zone name as the parent zone."
     }
   }
@@ -68,7 +102,7 @@ resource "null_resource" "delegation_validation" {
   triggers = {
     subdomain_name_servers = join(",", var.subdomain_name_servers)
     subdomain_name        = var.subdomain_name
-    parent_zone_id        = var.parent_zone_id
+    parent_zone_id        = local.parent_zone_id
   }
 }
 
@@ -121,7 +155,9 @@ resource "aws_cloudwatch_metric_alarm" "delegation_health_alarm" {
 
 # Create a TXT record in parent zone documenting the delegation
 resource "aws_route53_record" "delegation_metadata" {
-  zone_id = var.parent_zone_id
+  depends_on = [null_resource.validate_parent_config]
+  
+  zone_id = local.parent_zone_id
   name    = "_delegation.${var.subdomain_name}"
   type    = "TXT"
   ttl     = 3600

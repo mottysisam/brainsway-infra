@@ -26,12 +26,12 @@ dependency "staging_subzone" {
 }
 
 locals {
-  environment     = "prod"
-  parent_zone_id  = "PARENT_ZONE_ID"  # <<<<<<<<<< REPLACE with brainsway.cloud Zone ID in PROD
+  environment        = "prod"
+  parent_domain_name = "brainsway.cloud"  # Will lookup zone ID dynamically
 }
 
 inputs = {
-  parent_zone_id         = local.parent_zone_id
+  parent_domain_name     = local.parent_domain_name  # Module will lookup zone ID
   subdomain_name         = "staging.brainsway.cloud"
   subdomain_name_servers = dependency.staging_subzone.outputs.name_servers
 

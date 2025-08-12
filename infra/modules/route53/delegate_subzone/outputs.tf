@@ -27,17 +27,27 @@ output "delegation_ttl" {
 # Parent Zone Information
 output "parent_zone_id" {
   description = "The parent zone ID where delegation was created"
-  value       = var.parent_zone_id
+  value       = local.parent_zone_id
 }
 
 output "parent_zone_name" {
   description = "The parent zone name"
-  value       = data.aws_route53_zone.parent.name
+  value = local.has_zone_id ? (
+    data.aws_route53_zone.parent[0].name
+  ) : (
+    data.aws_route53_zone.parent_by_name[0].name
+  )
 }
 
 output "parent_zone_fqdn" {
   description = "The parent zone FQDN (without trailing dot)"
-  value       = trimsuffix(data.aws_route53_zone.parent.name, ".")
+  value = trimsuffix(
+    local.has_zone_id ? (
+      data.aws_route53_zone.parent[0].name
+    ) : (
+      data.aws_route53_zone.parent_by_name[0].name
+    ), "."
+  )
 }
 
 # Validation and Monitoring Outputs
@@ -88,8 +98,11 @@ output "delegation_summary" {
   description = "Complete summary of the delegation configuration"
   value = {
     subdomain           = var.subdomain_name
-    parent_zone         = trimsuffix(data.aws_route53_zone.parent.name, ".")
-    parent_zone_id      = var.parent_zone_id
+    parent_zone         = trimsuffix(
+      local.has_zone_id ? data.aws_route53_zone.parent[0].name : data.aws_route53_zone.parent_by_name[0].name,
+      "."
+    )
+    parent_zone_id      = local.parent_zone_id
     name_servers        = aws_route53_record.delegation.records
     ttl                 = aws_route53_record.delegation.ttl
     environment         = var.environment

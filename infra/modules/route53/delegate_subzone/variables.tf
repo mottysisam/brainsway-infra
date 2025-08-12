@@ -1,10 +1,22 @@
 variable "parent_zone_id" {
-  description = "The hosted zone ID of the parent zone (e.g., brainsway.cloud zone)"
+  description = "The hosted zone ID of the parent zone (e.g., brainsway.cloud zone) - DEPRECATED: Use parent_domain_name instead"
   type        = string
+  default     = null
   
   validation {
-    condition     = can(regex("^Z[0-9A-Z]+$", var.parent_zone_id))
+    condition     = var.parent_zone_id == null || can(regex("^Z[0-9A-Z]+$", var.parent_zone_id))
     error_message = "Parent zone ID must be a valid Route53 zone ID starting with Z."
+  }
+}
+
+variable "parent_domain_name" {
+  description = "The parent domain name to lookup zone ID dynamically (e.g., brainsway.cloud)"
+  type        = string
+  default     = null
+  
+  validation {
+    condition     = var.parent_domain_name == null || can(regex("^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.parent_domain_name))
+    error_message = "Parent domain name must be a valid FQDN."
   }
 }
 
