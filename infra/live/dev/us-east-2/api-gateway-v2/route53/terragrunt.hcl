@@ -1,0 +1,45 @@
+include "root" {
+  path = find_in_parent_folders()
+}
+
+terraform {
+  source = "../../../../../modules/route53/subzone"
+}
+
+
+locals {
+  
+  # Domain configuration
+  subdomain_name = "dev.brainsway.cloud"
+}
+
+inputs = {
+  # Subdomain configuration
+  domain_name     = local.subdomain_name
+  environment     = "dev"
+  comment         = "Delegated hosted zone for ${"dev"} environment API Gateway"
+  force_destroy   = true  # Allow destruction in dev environment
+  
+  # Health check configuration
+  enable_health_check    = true
+  health_check_type      = "HTTPS"
+  health_check_port      = 443
+  health_check_path      = "/health"
+  
+  # Query logging
+  enable_query_logging      = true
+  query_log_retention_days  = 7  # Shorter retention for dev
+  
+  # Monitoring and alerting
+  sns_topic_arns = []  # TODO: Add SNS topic ARN for health check alerts
+  
+  # Tags
+  tags = {
+    Name        = local.subdomain_name
+    Environment = "dev"
+    Purpose     = "DNS Delegation"
+    Type        = "Subzone"
+    ManagedBy   = "Terragrunt"
+    Project     = "multi-account-api-gateway"
+  }
+}
