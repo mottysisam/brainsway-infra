@@ -345,22 +345,13 @@ resource "aws_lambda_function" "this" {
   memory_size                   = var.lambda_memory_size
   reserved_concurrent_executions = var.reserved_concurrent_executions != -1 ? var.reserved_concurrent_executions : null
   
-  # Code configuration
-  dynamic "s3_bucket" {
-    for_each = var.lambda_code_s3_bucket != null ? [1] : []
-    content {
-      bucket = var.lambda_code_s3_bucket
-      key    = var.lambda_code_s3_key
-    }
-  }
+  # Code configuration - S3 source takes precedence
+  s3_bucket = var.lambda_code_s3_bucket
+  s3_key    = var.lambda_code_s3_key
   
-  dynamic "filename" {
-    for_each = var.lambda_code_s3_bucket == null ? [1] : []
-    content {
-      filename         = data.archive_file.lambda_zip.output_path
-      source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-    }
-  }
+  # Local file source (used when S3 is not specified)
+  filename         = var.lambda_code_s3_bucket == null ? data.archive_file.lambda_zip.output_path : null
+  source_code_hash = var.lambda_code_s3_bucket == null ? data.archive_file.lambda_zip.output_base64sha256 : null
   
   # Environment variables
   dynamic "environment" {
