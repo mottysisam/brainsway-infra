@@ -1,8 +1,9 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
-# Get Route53 zone information
+# Get Route53 zone information (if zone exists)
 data "aws_route53_zone" "main" {
+  count   = var.route53_zone_id != null && var.route53_zone_id != "" ? 1 : 0
   zone_id = var.route53_zone_id
 }
 
@@ -149,10 +150,10 @@ locals {
   # DNS validation information
   validation_records = {
     for dvo in aws_acm_certificate.this.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      value  = dvo.resource_record_value
-      type   = dvo.resource_record_type
-      status = dvo.validation_status
+      name  = dvo.resource_record_name
+      value = dvo.resource_record_value
+      type  = dvo.resource_record_type
+      # Note: validation_status is not available in domain_validation_options
     }
   }
 }

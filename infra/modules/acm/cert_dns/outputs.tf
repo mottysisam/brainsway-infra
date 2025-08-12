@@ -81,12 +81,12 @@ output "route53_zone_id" {
 
 output "route53_zone_name" {
   description = "Route53 zone name used for validation"
-  value       = data.aws_route53_zone.main.name
+  value       = length(data.aws_route53_zone.main) > 0 ? data.aws_route53_zone.main[0].name : "zone-not-found"
 }
 
 output "dns_zone_fqdn" {
   description = "FQDN of the DNS zone (without trailing dot)"
-  value       = trimsuffix(data.aws_route53_zone.main.name, ".")
+  value       = length(data.aws_route53_zone.main) > 0 ? trimsuffix(data.aws_route53_zone.main[0].name, ".") : "zone-not-found"
 }
 
 # Monitoring Information
@@ -161,7 +161,7 @@ output "certificate_summary" {
     validation_method = aws_acm_certificate.this.validation_method
     environment       = var.environment
     zone_id           = var.route53_zone_id
-    zone_name         = trimsuffix(data.aws_route53_zone.main.name, ".")
+    zone_name         = length(data.aws_route53_zone.main) > 0 ? trimsuffix(data.aws_route53_zone.main[0].name, ".") : "zone-not-found"
     monitoring_enabled = var.enable_certificate_monitoring
     cross_account_access = var.allow_cross_account_access
     created_region    = data.aws_region.current.name
