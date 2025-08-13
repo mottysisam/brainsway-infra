@@ -3,7 +3,14 @@
 *.tfstate.*
 *.tfvars
 .terraform/
-.terraform.lock.hcl
+.terragrunt-cache/
+# Keep .terraform.lock.hcl tracked for version consistency
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # AWS credentials and secrets
 secrets.txt
