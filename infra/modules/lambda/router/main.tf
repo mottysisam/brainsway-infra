@@ -389,7 +389,7 @@ exports.handler = async (event, context) => {
         if (path === '/docs' || path.endsWith('/docs')) {
             const environment = process.env.ENVIRONMENT || 'unknown';
             const baseUrl = ['dev', 'staging'].includes(environment) 
-                ? `https://api.${environment}.brainsway.cloud`
+                ? `https://api.$${environment}.brainsway.cloud`
                 : 'https://api.brainsway.cloud';
                 
             let availableFunctions = [];
@@ -421,7 +421,7 @@ exports.handler = async (event, context) => {
                             method: 'GET',
                             description: 'Health check endpoint with system status',
                             response_format: 'JSON',
-                            example: `curl ${baseUrl}/health`
+                            example: `curl $${baseUrl}/health`
                         },
                         info: {
                             path: '/info',
@@ -436,10 +436,10 @@ exports.handler = async (event, context) => {
                             description: 'Direct Lambda function invocation proxy',
                             response_format: 'JSON',
                             examples: {
-                                GET: `curl ${baseUrl}/lambda/function/sync_clock-${environment}`,
-                                POST: `curl -X POST ${baseUrl}/lambda/function/sync_clock-${environment} -H "Content-Type: application/json" -d '{"data":"value"}'`,
-                                PUT: `curl -X PUT ${baseUrl}/lambda/function/sync_clock-${environment} -H "Content-Type: application/json" -d '{"update":"value"}'`,
-                                DELETE: `curl -X DELETE ${baseUrl}/lambda/function/sync_clock-${environment}`
+                                GET: `curl $${baseUrl}/lambda/function/sync_clock-$${environment}`,
+                                POST: `curl -X POST $${baseUrl}/lambda/function/sync_clock-$${environment} -H "Content-Type: application/json" -d '{"data":"value"}'`,
+                                PUT: `curl -X PUT $${baseUrl}/lambda/function/sync_clock-$${environment} -H "Content-Type: application/json" -d '{"update":"value"}'`,
+                                DELETE: `curl -X DELETE $${baseUrl}/lambda/function/sync_clock-$${environment}`
                             },
                             available_functions: availableFunctions,
                             notes: [
