@@ -1,0 +1,15 @@
+{
+  "id": "6-bb7110e-prod",
+  "timestamp": "2025-08-12T19:31:07Z",
+  "environment": "prod",
+  "branch": "HEAD",
+  "commit": "bb7110e",
+  "status": "success",
+  "duration": 300,
+  "changes": [],
+  "author": "Motty Sisam",
+  "message": "Merge 6e885edc31843f89cbcf244eb83420d7d5bd7ea0 into ddbbe0b9f7122c5808167bf525ce1396e0f31d36",
+  "url": "https://github.com/mottysisam/brainsway-infra/actions/runs/16918861712",
+  "terragruntOutput": "\n",
+  "diggerComment": ""
+}
