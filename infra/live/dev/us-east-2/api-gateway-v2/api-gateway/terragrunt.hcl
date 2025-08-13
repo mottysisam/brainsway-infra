@@ -16,7 +16,7 @@ locals {
 
 # Dependencies
 dependencies {
-  paths = ["../acm", "../route53", "../lambda"]
+  paths = ["../acm", "../route53", "../lambda", "../internal-router"]
 }
 
 dependency "acm" {
@@ -45,6 +45,17 @@ dependency "lambda" {
     function_arn       = "arn:aws:lambda:us-east-2:824357028182:function:brainsway-api-router-dev"
     function_name      = "brainsway-api-router-dev"
     invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:824357028182:function:brainsway-api-router-dev/invocations"
+  }
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+}
+
+dependency "internal_router" {
+  config_path = "../internal-router"
+  
+  mock_outputs = {
+    function_arn       = "arn:aws:lambda:us-east-2:824357028182:function:brainsway-internal-router-dev"
+    function_name      = "brainsway-internal-router-dev"
+    invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:824357028182:function:brainsway-internal-router-dev/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
 }
@@ -84,6 +95,22 @@ inputs = {
   
   # WAF integration (optional, configured separately)
   web_acl_arn = ""  # Empty for dev
+  
+  # Internal Router Configuration (secure Lambda-to-Lambda routing)
+  enable_internal_router                     = true
+  internal_router_lambda_arn                 = dependency.internal_router.outputs.function_arn
+  internal_router_allow_unauthenticated_get  = true  # Dev environment - allows simple GET calls without auth
+  
+  # Internal Router Security (dev environment - permissive for testing)
+  internal_router_principals = [
+    # Add specific IAM roles/users that should be able to call internal routes
+    # For dev, this could include developer roles, CI/CD roles, etc.
+    # Example: "arn:aws:iam::824357028182:role/BrainswyDevRole"
+  ]
+  internal_router_vpc_endpoints = [
+    # Add VPC endpoint IDs if using private API access
+    # Example: "vpce-12345678"
+  ]
   
   # Tags
   tags = {

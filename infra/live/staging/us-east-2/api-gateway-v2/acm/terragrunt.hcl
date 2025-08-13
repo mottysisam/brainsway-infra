@@ -25,7 +25,7 @@ dependency "route53" {
     zone_id     = "Z1D633PJN98FT9"
     domain_name = "staging.brainsway.cloud"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
 
 inputs = {
@@ -37,7 +37,7 @@ inputs = {
   
   # DNS validation
   route53_zone_id = dependency.route53.outputs.zone_id
-  validation_timeout = "10m"
+  validation_timeout = "20m"  # Increased from 10m for slower DNS propagation
   
   # Security configuration
   key_algorithm = "RSA_2048"

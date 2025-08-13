@@ -27,6 +27,10 @@ resource "aws_apigatewayv2_api" "this" {
   })
 }
 
+# Note: HTTP API Gateway v2 doesn't support resource policies like REST API Gateway
+# Security is enforced through IAM authentication on routes and restrictive IAM policies
+# on the client side that limit which principals can invoke the internal routes
+
 # Lambda integration for proxy requests
 resource "aws_apigatewayv2_integration" "lambda" {
   api_id                 = aws_apigatewayv2_api.this.id
@@ -50,6 +54,39 @@ resource "aws_apigatewayv2_route" "default" {
   api_id    = aws_apigatewayv2_api.this.id
   route_key = "$default"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+# Internal Router Integration (secure Lambda-to-Lambda routing)
+resource "aws_apigatewayv2_integration" "internal_router" {
+  count = var.enable_internal_router ? 1 : 0
+  
+  api_id                 = aws_apigatewayv2_api.this.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = var.internal_router_lambda_arn
+  payload_format_version = "2.0"
+  timeout_milliseconds   = 30000
+  
+  description = "Internal router Lambda integration for secure function routing"
+}
+
+# Internal router route for authenticated requests (POST, PUT, DELETE, etc.)
+resource "aws_apigatewayv2_route" "internal_router_authenticated" {
+  count = var.enable_internal_router ? 1 : 0
+  
+  api_id             = aws_apigatewayv2_api.this.id
+  route_key          = "ANY /lambda/function/{function_name+}"
+  target             = "integrations/${aws_apigatewayv2_integration.internal_router[0].id}"
+  authorization_type = "AWS_IAM"
+}
+
+# Internal router route for unauthenticated GET requests (dev/testing only)
+resource "aws_apigatewayv2_route" "internal_router_get" {
+  count = var.enable_internal_router && var.internal_router_allow_unauthenticated_get ? 1 : 0
+  
+  api_id             = aws_apigatewayv2_api.this.id
+  route_key          = "GET /lambda/function/{function_name+}"
+  target             = "integrations/${aws_apigatewayv2_integration.internal_router[0].id}"
+  authorization_type = "NONE"
 }
 
 # Health endpoint is handled by the Lambda function
@@ -177,6 +214,21 @@ resource "aws_lambda_permission" "apigw_invoke" {
   statement_id  = "AllowInvokeFromApiGateway-${replace(var.api_name, "-", "")}"
   action        = "lambda:InvokeFunction"
   function_name = var.lambda_arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "arn:aws:execute-api:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.this.id}/*/*"
+  
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Lambda permission for API Gateway to invoke the internal router
+resource "aws_lambda_permission" "internal_router_invoke" {
+  count = var.enable_internal_router ? 1 : 0
+  
+  statement_id  = "AllowInvokeFromApiGateway-InternalRouter-${replace(var.api_name, "-", "")}"
+  action        = "lambda:InvokeFunction"
+  function_name = var.internal_router_lambda_arn
   principal     = "apigateway.amazonaws.com"
   source_arn    = "arn:aws:execute-api:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${aws_apigatewayv2_api.this.id}/*/*"
   

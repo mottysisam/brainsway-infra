@@ -116,3 +116,34 @@ variable "throttle_rate_limit" {
   type        = number
   default     = 500
 }
+
+# Internal Router Configuration
+variable "enable_internal_router" {
+  description = "Enable internal Lambda router with secure routes"
+  type        = bool
+  default     = false
+}
+
+variable "internal_router_lambda_arn" {
+  description = "ARN of the internal router Lambda function"
+  type        = string
+  default     = null
+}
+
+variable "internal_router_principals" {
+  description = "List of IAM principals allowed to invoke internal routes"
+  type        = list(string)
+  default     = []
+}
+
+variable "internal_router_vpc_endpoints" {
+  description = "List of VPC endpoint IDs allowed for internal routes (for private APIs)"
+  type        = list(string)
+  default     = []
+}
+
+variable "internal_router_allow_unauthenticated_get" {
+  description = "Allow unauthenticated GET requests to internal router (dev/testing only)"
+  type        = bool
+  default     = false
+}

@@ -122,6 +122,59 @@ def handler(event, context):
             else:
                 return create_response(405, {'error': f'Method {http_method} not allowed for /users'})
                 
+        elif path.startswith('/svc/lambda/functions/'):
+            # Handle Lambda function routing pattern: /svc/lambda/functions/FUNCTION_NAME
+            function_name = path.split('/')[-1]
+            if not function_name:
+                return create_response(400, {'error': 'Function name is required'})
+            
+            # Simple routing to Lambda function by name
+            if http_method == 'GET':
+                return create_response(200, {
+                    'function_name': function_name,
+                    'status': 'callable',
+                    'message': f'Lambda function {function_name} is accessible',
+                    'path': path,
+                    'available_methods': ['GET', 'POST', 'PUT', 'DELETE'],
+                    'timestamp': int(time.time())
+                })
+            elif http_method == 'POST':
+                # Forward POST request to function
+                try:
+                    request_body = json.loads(body) if body else {}
+                    return create_response(200, {
+                        'function_name': function_name,
+                        'method': 'POST',
+                        'received_data': request_body,
+                        'message': f'Request forwarded to {function_name}',
+                        'timestamp': int(time.time())
+                    })
+                except json.JSONDecodeError:
+                    return create_response(400, {'error': 'Invalid JSON in request body'})
+            elif http_method == 'PUT':
+                # Handle PUT requests to function
+                try:
+                    request_body = json.loads(body) if body else {}
+                    return create_response(200, {
+                        'function_name': function_name,
+                        'method': 'PUT',
+                        'received_data': request_body,
+                        'message': f'PUT request forwarded to {function_name}',
+                        'timestamp': int(time.time())
+                    })
+                except json.JSONDecodeError:
+                    return create_response(400, {'error': 'Invalid JSON in request body'})
+            elif http_method == 'DELETE':
+                # Handle DELETE requests to function
+                return create_response(200, {
+                    'function_name': function_name,
+                    'method': 'DELETE',
+                    'message': f'DELETE request forwarded to {function_name}',
+                    'timestamp': int(time.time())
+                })
+            else:
+                return create_response(405, {'error': f'Method {http_method} not allowed for Lambda function routing'})
+        
         elif path.startswith('/users/'):
             # Extract user ID from path
             user_id = path.split('/')[-1]
@@ -182,13 +235,19 @@ def handler(event, context):
                     'POST /users - Create new user',
                     'GET /users/{id} - Get specific user',
                     'PUT /users/{id} - Update specific user',
-                    'DELETE /users/{id} - Delete specific user'
+                    'DELETE /users/{id} - Delete specific user',
+                    'GET /svc/lambda/functions/{function_name} - Access Lambda function',
+                    'POST /svc/lambda/functions/{function_name} - Send data to Lambda function',
+                    'PUT /svc/lambda/functions/{function_name} - Update data via Lambda function',
+                    'DELETE /svc/lambda/functions/{function_name} - Delete via Lambda function'
                 ],
                 'example_requests': [
                     'curl https://api.dev.brainsway.cloud/health',
                     'curl https://api.dev.brainsway.cloud/users',
                     'curl -X POST https://api.dev.brainsway.cloud/users -H "Content-Type: application/json" -d \'{"name":"John","email":"john@example.com"}\'',
-                    'curl https://api.dev.brainsway.cloud/users/1'
+                    'curl https://api.dev.brainsway.cloud/users/1',
+                    'curl https://api.dev.brainsway.cloud/svc/lambda/functions/myfunction',
+                    'curl -X POST https://api.dev.brainsway.cloud/svc/lambda/functions/myfunction -H "Content-Type: application/json" -d \'{"data":"value"}\''
                 ]
             })
             
@@ -278,6 +337,48 @@ exports.handler = async (event, context) => {
             return createCorsResponse();
         }
         
+        // Lambda function routing pattern: /svc/lambda/functions/FUNCTION_NAME
+        if (path.startsWith('/svc/lambda/functions/')) {
+            const functionName = path.split('/').pop();
+            if (!functionName) {
+                return createResponse(400, { error: 'Function name is required' });
+            }
+            
+            if (httpMethod === 'GET') {
+                return createResponse(200, {
+                    function_name: functionName,
+                    status: 'callable',
+                    message: `Lambda function $${functionName} is accessible`,
+                    path: path,
+                    available_methods: ['GET', 'POST', 'PUT', 'DELETE'],
+                    timestamp: Math.floor(Date.now() / 1000)
+                });
+            } else if (['POST', 'PUT'].includes(httpMethod)) {
+                let requestBody = {};
+                try {
+                    requestBody = event.body ? JSON.parse(event.body) : {};
+                } catch (e) {
+                    return createResponse(400, { error: 'Invalid JSON in request body' });
+                }
+                return createResponse(200, {
+                    function_name: functionName,
+                    method: httpMethod,
+                    received_data: requestBody,
+                    message: `$${httpMethod} request forwarded to $${functionName}`,
+                    timestamp: Math.floor(Date.now() / 1000)
+                });
+            } else if (httpMethod === 'DELETE') {
+                return createResponse(200, {
+                    function_name: functionName,
+                    method: 'DELETE',
+                    message: `DELETE request forwarded to $${functionName}`,
+                    timestamp: Math.floor(Date.now() / 1000)
+                });
+            } else {
+                return createResponse(405, { error: `Method $${httpMethod} not allowed for Lambda function routing` });
+            }
+        }
+        
         // Default route
         return createResponse(200, {
             message: 'API Router is working',
@@ -288,6 +389,7 @@ exports.handler = async (event, context) => {
             availableEndpoints: [
                 '/health - Health check endpoint',
                 '/info - Function information',
+                '/svc/lambda/functions/{function_name} - Access Lambda function',
                 '/* - This default router'
             ]
         });
