@@ -428,7 +428,7 @@ exports.handler = async (event, context) => {
                             method: 'GET', 
                             description: 'Lambda function information and environment details',
                             response_format: 'JSON',
-                            example: `curl ${baseUrl}/info`
+                            example: `curl $${baseUrl}/info`
                         },
                         lambda_proxy: {
                             path: '/lambda/function/{function_name}',
@@ -454,7 +454,7 @@ exports.handler = async (event, context) => {
                             method: 'GET',
                             description: 'This comprehensive API documentation',
                             response_format: 'JSON',
-                            example: `curl ${baseUrl}/docs`
+                            example: `curl $${baseUrl}/docs`
                         }
                     },
                     authentication: {
