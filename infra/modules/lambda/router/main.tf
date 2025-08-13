@@ -89,41 +89,137 @@ def handler(event, context):
                 'timestamp': int(time.time())
             })
             
-        elif path == '/users':
-            if http_method == 'GET':
-                # Mock users data
-                return create_response(200, {
-                    'users': [
-                        {'id': 1, 'name': 'John Doe', 'email': 'john@example.com', 'role': 'admin'},
-                        {'id': 2, 'name': 'Jane Smith', 'email': 'jane@example.com', 'role': 'user'},
-                        {'id': 3, 'name': 'Bob Johnson', 'email': 'bob@example.com', 'role': 'user'}
-                    ],
-                    'total': 3,
-                    'page': int(query_params.get('page', 1)),
-                    'limit': int(query_params.get('limit', 10))
-                })
-            elif http_method == 'POST':
-                # Create new user (mock implementation)
-                try:
-                    user_data = json.loads(body) if body else {}
-                    new_user = {
-                        'id': 4,  # In real implementation, this would be generated
-                        'name': user_data.get('name', 'New User'),
-                        'email': user_data.get('email', 'user@example.com'),
-                        'role': user_data.get('role', 'user'),
-                        'created_at': int(time.time())
+        elif path == '/docs':
+            # Comprehensive API Documentation
+            environment = os.environ.get('ENVIRONMENT', 'unknown')
+            base_url = f"https://api.{environment}.brainsway.cloud" if environment in ['dev', 'staging'] else "https://api.brainsway.cloud"
+            
+            # Environment-specific function list
+            available_functions = []
+            if environment == 'staging':
+                available_functions = [
+                    'sync_clock-staging - Time synchronization service',
+                    'generatePresignedUrl-staging - S3 URL generator',
+                    'presignedUrlForS3Upload-staging - S3 upload URL generator',
+                    'insert-ppu-data-staging - PPU data insertion',
+                    'softwareUpdateHandler-staging - Software update management'
+                ]
+            elif environment == 'dev':
+                available_functions = [
+                    'sync_clock-dev - Time synchronization service'
+                ]
+            
+            return create_response(200, {
+                'api_documentation': {
+                    'title': 'Brainsway Multi-Environment API',
+                    'version': '1.0.0',
+                    'environment': environment,
+                    'base_url': base_url,
+                    'description': 'Brainsway API Router with direct Lambda function invocation capabilities',
+                    'last_updated': '2025-08-13',
+                    'endpoints': {
+                        'health': {
+                            'path': '/health',
+                            'method': 'GET',
+                            'description': 'Health check endpoint with system status',
+                            'response_format': 'JSON',
+                            'example': f'curl {base_url}/health',
+                            'response_schema': {
+                                'status': 'string',
+                                'timestamp': 'string',
+                                'environment': 'string',
+                                'version': 'string',
+                                'checks': 'object'
+                            }
+                        },
+                        'info': {
+                            'path': '/info',
+                            'method': 'GET',
+                            'description': 'Lambda function information and environment details',
+                            'response_format': 'JSON',
+                            'example': f'curl {base_url}/info'
+                        },
+                        'version': {
+                            'path': '/version',
+                            'method': 'GET',
+                            'description': 'API version information and feature list',
+                            'response_format': 'JSON',
+                            'example': f'curl {base_url}/version'
+                        },
+                        'metrics': {
+                            'path': '/metrics',
+                            'method': 'GET',
+                            'description': 'System metrics and performance indicators',
+                            'response_format': 'JSON',
+                            'example': f'curl {base_url}/metrics'
+                        },
+                        'lambda_proxy': {
+                            'path': '/lambda/function/{{function_name}}',
+                            'methods': ['GET', 'POST', 'PUT', 'DELETE'],
+                            'description': 'Direct Lambda function invocation proxy',
+                            'response_format': 'JSON',
+                            'examples': {
+                                'GET': f'curl {base_url}/lambda/function/sync_clock-{environment}',
+                                'POST': f'curl -X POST {base_url}/lambda/function/sync_clock-{environment} -H "Content-Type: application/json" -d \'{{"data":"value"}}\'',
+                                'PUT': f'curl -X PUT {base_url}/lambda/function/sync_clock-{environment} -H "Content-Type: application/json" -d \'{{"update":"value"}}\'',
+                                'DELETE': f'curl -X DELETE {base_url}/lambda/function/sync_clock-{environment}'
+                            },
+                            'available_functions': available_functions,
+                            'notes': [
+                                'Replace {{function_name}} with actual Lambda function name',
+                                'Functions are environment-specific (e.g., sync_clock-staging for staging)',
+                                'All requests support JSON payload in request body',
+                                'Responses vary by Lambda function implementation'
+                            ]
+                        },
+                        'docs': {
+                            'path': '/docs',
+                            'method': 'GET',
+                            'description': 'This comprehensive API documentation',
+                            'response_format': 'JSON',
+                            'example': f'curl {base_url}/docs'
+                        }
+                    },
+                    'authentication': {
+                        'type': 'none',
+                        'description': 'Currently no authentication required for API endpoints',
+                        'notes': 'Production environments may implement API key or JWT authentication'
+                    },
+                    'cors': {
+                        'enabled': True,
+                        'allowed_origins': '*',
+                        'allowed_methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                        'allowed_headers': ['Content-Type', 'Authorization', 'X-Requested-With']
+                    },
+                    'rate_limiting': {
+                        'burst_limit': 2000,
+                        'rate_limit': 1000,
+                        'description': 'API Gateway throttling limits per environment'
+                    },
+                    'environments': {
+                        'development': {
+                            'url': 'https://api.dev.brainsway.cloud',
+                            'description': 'Development environment for testing and development workflows',
+                            'features': ['basic_routing', 'lambda_proxy', 'health_checks']
+                        },
+                        'staging': {
+                            'url': 'https://api.staging.brainsway.cloud', 
+                            'description': 'Pre-production environment for validation and testing',
+                            'features': ['full_feature_set', 'lambda_proxy', 'monitoring', 'comprehensive_functions']
+                        },
+                        'production': {
+                            'url': 'https://api.brainsway.cloud',
+                            'description': 'Production environment (coming soon)',
+                            'features': ['enterprise_grade', 'security_hardened', 'high_availability']
+                        }
                     }
-                    return create_response(201, {
-                        'message': 'User created successfully',
-                        'user': new_user
-                    })
-                except json.JSONDecodeError:
-                    return create_response(400, {'error': 'Invalid JSON in request body'})
-            else:
-                return create_response(405, {'error': f'Method {http_method} not allowed for /users'})
+                }
+            })
+            
+        # /users endpoints removed - no longer supported
                 
-        elif path.startswith('/svc/lambda/functions/'):
-            # Handle Lambda function routing pattern: /svc/lambda/functions/FUNCTION_NAME
+        elif path.startswith('/lambda/function/'):
+            # Handle Lambda function routing pattern: /lambda/function/FUNCTION_NAME
             function_name = path.split('/')[-1]
             if not function_name:
                 return create_response(400, {'error': 'Function name is required'})
@@ -175,48 +271,7 @@ def handler(event, context):
             else:
                 return create_response(405, {'error': f'Method {http_method} not allowed for Lambda function routing'})
         
-        elif path.startswith('/users/'):
-            # Extract user ID from path
-            user_id = path.split('/')[-1]
-            if not user_id.isdigit():
-                return create_response(400, {'error': 'Invalid user ID'})
-                
-            if http_method == 'GET':
-                # Get specific user (mock implementation)
-                mock_user = {
-                    'id': int(user_id),
-                    'name': f'User {user_id}',
-                    'email': f'user{user_id}@example.com',
-                    'role': 'user',
-                    'created_at': int(time.time()) - 86400  # Yesterday
-                }
-                return create_response(200, {'user': mock_user})
-                
-            elif http_method == 'PUT':
-                # Update user (mock implementation)
-                try:
-                    user_data = json.loads(body) if body else {}
-                    updated_user = {
-                        'id': int(user_id),
-                        'name': user_data.get('name', f'User {user_id}'),
-                        'email': user_data.get('email', f'user{user_id}@example.com'),
-                        'role': user_data.get('role', 'user'),
-                        'updated_at': int(time.time())
-                    }
-                    return create_response(200, {
-                        'message': 'User updated successfully',
-                        'user': updated_user
-                    })
-                except json.JSONDecodeError:
-                    return create_response(400, {'error': 'Invalid JSON in request body'})
-                    
-            elif http_method == 'DELETE':
-                # Delete user (mock implementation)
-                return create_response(200, {
-                    'message': f'User {user_id} deleted successfully'
-                })
-            else:
-                return create_response(405, {'error': f'Method {http_method} not allowed for /users/{user_id}'})
+        # /users/{id} endpoints removed - no longer supported
         
         else:
             # Default route - return API documentation
@@ -231,23 +286,21 @@ def handler(event, context):
                     'GET /info - Function information',
                     'GET /version - API version information',
                     'GET /metrics - System metrics',
-                    'GET /users - List all users',
-                    'POST /users - Create new user',
-                    'GET /users/{id} - Get specific user',
-                    'PUT /users/{id} - Update specific user',
-                    'DELETE /users/{id} - Delete specific user',
-                    'GET /svc/lambda/functions/{function_name} - Access Lambda function',
-                    'POST /svc/lambda/functions/{function_name} - Send data to Lambda function',
-                    'PUT /svc/lambda/functions/{function_name} - Update data via Lambda function',
-                    'DELETE /svc/lambda/functions/{function_name} - Delete via Lambda function'
+                    'GET /lambda/function/{function_name} - Access Lambda function',
+                    'POST /lambda/function/{function_name} - Send data to Lambda function',
+                    'PUT /lambda/function/{function_name} - Update data via Lambda function',
+                    'DELETE /lambda/function/{function_name} - Delete via Lambda function',
+                    'GET /docs - API documentation',
+                    '/* - Default router'
                 ],
                 'example_requests': [
-                    'curl https://api.dev.brainsway.cloud/health',
-                    'curl https://api.dev.brainsway.cloud/users',
-                    'curl -X POST https://api.dev.brainsway.cloud/users -H "Content-Type: application/json" -d \'{"name":"John","email":"john@example.com"}\'',
-                    'curl https://api.dev.brainsway.cloud/users/1',
-                    'curl https://api.dev.brainsway.cloud/svc/lambda/functions/myfunction',
-                    'curl -X POST https://api.dev.brainsway.cloud/svc/lambda/functions/myfunction -H "Content-Type: application/json" -d \'{"data":"value"}\''
+                    'curl https://api.staging.brainsway.cloud/health',
+                    'curl https://api.staging.brainsway.cloud/info',
+                    'curl https://api.staging.brainsway.cloud/version',
+                    'curl https://api.staging.brainsway.cloud/metrics',
+                    'curl https://api.staging.brainsway.cloud/lambda/function/sync_clock-staging',
+                    'curl -X POST https://api.staging.brainsway.cloud/lambda/function/sync_clock-staging -H "Content-Type: application/json" -d \'{"data":"value"}\'',
+                    'curl https://api.staging.brainsway.cloud/docs'
                 ]
             })
             
@@ -333,12 +386,115 @@ exports.handler = async (event, context) => {
             });
         }
         
+        if (path === '/docs' || path.endsWith('/docs')) {
+            const environment = process.env.ENVIRONMENT || 'unknown';
+            const baseUrl = ['dev', 'staging'].includes(environment) 
+                ? `https://api.${environment}.brainsway.cloud`
+                : 'https://api.brainsway.cloud';
+                
+            let availableFunctions = [];
+            if (environment === 'staging') {
+                availableFunctions = [
+                    'sync_clock-staging - Time synchronization service',
+                    'generatePresignedUrl-staging - S3 URL generator',
+                    'presignedUrlForS3Upload-staging - S3 upload URL generator',
+                    'insert-ppu-data-staging - PPU data insertion',
+                    'softwareUpdateHandler-staging - Software update management'
+                ];
+            } else if (environment === 'dev') {
+                availableFunctions = [
+                    'sync_clock-dev - Time synchronization service'
+                ];
+            }
+            
+            return createResponse(200, {
+                api_documentation: {
+                    title: 'Brainsway Multi-Environment API',
+                    version: '1.0.0',
+                    environment: environment,
+                    base_url: baseUrl,
+                    description: 'Brainsway API Router with direct Lambda function invocation capabilities',
+                    last_updated: '2025-08-13',
+                    endpoints: {
+                        health: {
+                            path: '/health',
+                            method: 'GET',
+                            description: 'Health check endpoint with system status',
+                            response_format: 'JSON',
+                            example: `curl ${baseUrl}/health`
+                        },
+                        info: {
+                            path: '/info',
+                            method: 'GET', 
+                            description: 'Lambda function information and environment details',
+                            response_format: 'JSON',
+                            example: `curl ${baseUrl}/info`
+                        },
+                        lambda_proxy: {
+                            path: '/lambda/function/{function_name}',
+                            methods: ['GET', 'POST', 'PUT', 'DELETE'],
+                            description: 'Direct Lambda function invocation proxy',
+                            response_format: 'JSON',
+                            examples: {
+                                GET: `curl ${baseUrl}/lambda/function/sync_clock-${environment}`,
+                                POST: `curl -X POST ${baseUrl}/lambda/function/sync_clock-${environment} -H "Content-Type: application/json" -d '{"data":"value"}'`,
+                                PUT: `curl -X PUT ${baseUrl}/lambda/function/sync_clock-${environment} -H "Content-Type: application/json" -d '{"update":"value"}'`,
+                                DELETE: `curl -X DELETE ${baseUrl}/lambda/function/sync_clock-${environment}`
+                            },
+                            available_functions: availableFunctions,
+                            notes: [
+                                'Replace {function_name} with actual Lambda function name',
+                                'Functions are environment-specific (e.g., sync_clock-staging for staging)',
+                                'All requests support JSON payload in request body',
+                                'Responses vary by Lambda function implementation'
+                            ]
+                        },
+                        docs: {
+                            path: '/docs',
+                            method: 'GET',
+                            description: 'This comprehensive API documentation',
+                            response_format: 'JSON',
+                            example: `curl ${baseUrl}/docs`
+                        }
+                    },
+                    authentication: {
+                        type: 'none',
+                        description: 'Currently no authentication required for API endpoints',
+                        notes: 'Production environments may implement API key or JWT authentication'
+                    },
+                    cors: {
+                        enabled: true,
+                        allowed_origins: '*',
+                        allowed_methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+                        allowed_headers: ['Content-Type', 'Authorization', 'X-Requested-With']
+                    },
+                    environments: {
+                        development: {
+                            url: 'https://api.dev.brainsway.cloud',
+                            description: 'Development environment for testing and development workflows',
+                            features: ['basic_routing', 'lambda_proxy', 'health_checks']
+                        },
+                        staging: {
+                            url: 'https://api.staging.brainsway.cloud',
+                            description: 'Pre-production environment for validation and testing', 
+                            features: ['full_feature_set', 'lambda_proxy', 'monitoring', 'comprehensive_functions']
+                        },
+                        production: {
+                            url: 'https://api.brainsway.cloud',
+                            description: 'Production environment (coming soon)',
+                            features: ['enterprise_grade', 'security_hardened', 'high_availability']
+                        }
+                    }
+                }
+            });
+        }
+        
         if (httpMethod === 'OPTIONS') {
             return createCorsResponse();
         }
         
-        // Lambda function routing pattern: /svc/lambda/functions/FUNCTION_NAME
-        if (path.startsWith('/svc/lambda/functions/')) {
+        // Lambda function routing pattern: /lambda/function/FUNCTION_NAME
+        if (path.startsWith('/lambda/function/')) {
             const functionName = path.split('/').pop();
             if (!functionName) {
                 return createResponse(400, { error: 'Function name is required' });
@@ -389,7 +545,8 @@ exports.handler = async (event, context) => {
             availableEndpoints: [
                 '/health - Health check endpoint',
                 '/info - Function information',
-                '/svc/lambda/functions/{function_name} - Access Lambda function',
+                '/lambda/function/{function_name} - Access Lambda function',
+                '/docs - API documentation',
                 '/* - This default router'
             ]
         });
