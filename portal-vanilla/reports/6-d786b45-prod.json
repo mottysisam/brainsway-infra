@@ -1,0 +1,15 @@
+{
+  "id": "6-d786b45-prod",
+  "timestamp": "2025-08-12T14:56:51Z",
+  "environment": "prod",
+  "branch": "HEAD",
+  "commit": "d786b45",
+  "status": "success",
+  "duration": 300,
+  "changes": [],
+  "author": "Motty Sisam",
+  "message": "Merge dd8a47b026e404756f836e2b244c848a154b0795 into ddbbe0b9f7122c5808167bf525ce1396e0f31d36",
+  "url": "https://github.com/mottysisam/brainsway-infra/actions/runs/16912617306",
+  "terragruntOutput": "\n",
+  "diggerComment": ""
+}
