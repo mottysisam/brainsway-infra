@@ -1,0 +1,15 @@
+{
+  "id": "6-fedadd3-prod",
+  "timestamp": "2025-08-13T06:42:05Z",
+  "environment": "prod",
+  "branch": "HEAD",
+  "commit": "fedadd3",
+  "status": "success",
+  "duration": 300,
+  "changes": [],
+  "author": "Motty Sisam",
+  "message": "Merge 8164482f9c2269088dc80bfbecb954d75bee0136 into ddbbe0b9f7122c5808167bf525ce1396e0f31d36",
+  "url": "https://github.com/mottysisam/brainsway-infra/actions/runs/16929612737",
+  "terragruntOutput": "\n",
+  "diggerComment": ""
+}
