@@ -2,28 +2,29 @@ include "root" { path = find_in_parent_folders() }
 terraform { source = "../../../../modules/rds" }
 inputs = {
   "instances" = {
-    "bwppudb-staging" = {
+    "bwppudb" = {
       "engine"              = "postgres"
       "engine_version"      = "14.17"
       "instance_class"      = "db.t3.small"
       "allocated_storage"   = 20
       "storage_type"        = "gp2"
       "db_name"            = "bwppudb"
-      "username"           = "postgres"
-      "password"           = "TempPassword123"  # Static password for staging
+      "username"           = "brainsway"
+      "password"           = "brainswaypwd"  # Match production credentials
       "multi_az"           = false
-      "publicly_accessible" = false
-      "vpc_security_group_ids" = ["sg-a73090c7"]
+      "publicly_accessible" = true  # Enable for schema migration
+      "vpc_security_group_ids" = ["sg-a73090c7"]  # Office access: 77.137.22.0/24, 31.154.74.0/24, 79.177.151.154/32
       "skip_final_snapshot" = true
       "tags" = {
-        "Name" = "bwppudb-staging"
+        "Name" = "bwppudb"
         "Environment" = "staging"
+        "Purpose" = "Schema migration from production"
       }
     }
   }
   
   "clusters" = {
-    "db-aurora-1-staging" = {
+    "db-aurora-1" = {
       "engine"              = "aurora-postgresql"
       "engine_version"      = "13.12"
       "engine_mode"         = "provisioned"
@@ -32,7 +33,7 @@ inputs = {
       "master_password"     = "TempPassword123"  # Static password for staging
       "deletion_protection" = false
       "skip_final_snapshot" = true
-      "vpc_security_group_ids" = ["sg-a73090c7"]
+      "vpc_security_group_ids" = ["sg-a73090c7"]  # Office access: 77.137.22.0/24, 31.154.74.0/24, 79.177.151.154/32
       "backup_retention_period" = 7
       "storage_encrypted"   = true
       "serverlessv2_scaling_configuration" = {
@@ -40,12 +41,12 @@ inputs = {
         "min_capacity" = 2
       }
       "tags" = {
-        "Name" = "db-aurora-1-staging"
+        "Name" = "db-aurora-1"
         "Environment" = "staging"
         "Type" = "Aurora Serverless v2"
       }
     }
-    "insight-production-db-staging" = {
+    "insight-production-db" = {
       "engine"              = "aurora-postgresql"
       "engine_version"      = "13.12"
       "engine_mode"         = "provisioned"
@@ -54,7 +55,7 @@ inputs = {
       "master_password"     = "TempPassword123"  # Static password for staging
       "deletion_protection" = false
       "skip_final_snapshot" = true
-      "vpc_security_group_ids" = ["sg-a73090c7"]
+      "vpc_security_group_ids" = ["sg-a73090c7"]  # Office access: 77.137.22.0/24, 31.154.74.0/24, 79.177.151.154/32
       "backup_retention_period" = 7
       "storage_encrypted"   = true
       "serverlessv2_scaling_configuration" = {
@@ -62,7 +63,7 @@ inputs = {
         "min_capacity" = 2
       }
       "tags" = {
-        "Name" = "insight-production-db-staging"
+        "Name" = "insight-production-db"
         "Environment" = "staging"
         "Type" = "Aurora Serverless v2"
       }
@@ -70,20 +71,20 @@ inputs = {
   }
   
   "cluster_instances" = {
-    "db-aurora-1-staging-instance-1" = {
-      "cluster_identifier" = "db-aurora-1-staging"
+    "db-aurora-1-instance-1" = {
+      "cluster_identifier" = "db-aurora-1"
       "engine" = "aurora-postgresql"
       "tags" = {
-        "Name" = "db-aurora-1-staging-instance-1"
+        "Name" = "db-aurora-1-instance-1"
         "Environment" = "staging"
         "Type" = "Aurora Serverless v2 Writer"
       }
     }
-    "insight-production-db-staging-instance-1" = {
-      "cluster_identifier" = "insight-production-db-staging"
+    "insight-production-db-instance-1" = {
+      "cluster_identifier" = "insight-production-db"
       "engine" = "aurora-postgresql"
       "tags" = {
-        "Name" = "insight-production-db-staging-instance-1"
+        "Name" = "insight-production-db-instance-1"
         "Environment" = "staging"
         "Type" = "Aurora Serverless v2 Writer"
       }
