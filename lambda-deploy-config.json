@@ -1,0 +1,228 @@
+{
+    "version": "1.0.0",
+    "description": "Lambda function deployment configuration matrix",
+    "environments": {
+        "dev": {
+            "aws_account": "824357028182",
+            "aws_region": "us-east-2",
+            "vpc_subnets": ["subnet-bc5f56d4", "subnet-7b430401", "subnet-e577d8a9"],
+            "security_group": "sg-0cb4d7360eb9f9b4a",
+            "rds_endpoint": "bwppudb.cluster-cibvsppk6iez.us-east-2.rds.amazonaws.com"
+        },
+        "staging": {
+            "aws_account": "574210586915",
+            "aws_region": "us-east-2",
+            "vpc_subnets": ["subnet-bc5f56d4", "subnet-7b430401", "subnet-e577d8a9"],
+            "security_group": "sg-0aec8ec7df23c1c54",
+            "rds_endpoint": "bwppudb.cluster-c5jnqvj5xatn.us-east-2.rds.amazonaws.com"
+        }
+    },
+    "functions": {
+        "api-docs-generator": {
+            "description": "Generates API documentation from OpenAPI specifications",
+            "runtime": "python3.11",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 512,
+            "timeout": 30,
+            "role_name": "lambda_basic_execution",
+            "vpc_enabled": false,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "api-docs-generator",
+                "Category": "documentation",
+                "Runtime": "python3.11"
+            }
+        },
+        "generate-presigned-url": {
+            "description": "Generates presigned URLs for S3 file downloads",
+            "runtime": "python3.9",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 128,
+            "timeout": 10,
+            "role_name": "lambda_s3_execution",
+            "vpc_enabled": false,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "generate-presigned-url",
+                "Category": "s3",
+                "Runtime": "python3.9"
+            }
+        },
+        "insert-ppu-data": {
+            "description": "Inserts PPU treatment data into PostgreSQL database",
+            "runtime": "python3.9",
+            "handler": "insertPPUData.handler",
+            "memory_size": 1024,
+            "timeout": 6,
+            "role_name": "lambda-vpc-role",
+            "vpc_enabled": true,
+            "layers": ["arn:aws:lambda:us-east-2:770693421928:layer:Klayers-p39-psycopg2-binary:1"],
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}",
+                    "DB_PORT": "5432",
+                    "DB_USER": "brainsway",
+                    "DB_PASSWORD": "brainswaypwd",
+                    "DB_NAME": "bwppudb",
+                    "DYNAMODB_TABLE": "event_log"
+                },
+                "dev": {
+                    "DB_ENDPOINT": "bwppudb.cluster-cibvsppk6iez.us-east-2.rds.amazonaws.com"
+                },
+                "staging": {
+                    "DB_ENDPOINT": "bwppudb.cluster-c5jnqvj5xatn.us-east-2.rds.amazonaws.com"
+                }
+            },
+            "tags": {
+                "Function": "insert-ppu-data",
+                "Category": "database",
+                "Runtime": "python3.9",
+                "VPC": "enabled"
+            }
+        },
+        "lambda-test-runner": {
+            "description": "Runs automated tests for Lambda functions",
+            "runtime": "python3.9",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 1024,
+            "timeout": 300,
+            "role_name": "lambda-test-runner-role",
+            "vpc_enabled": true,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}",
+                    "TEST_S3_BUCKET": "bw-lambda-test-reports",
+                    "DYNAMODB_TABLE": "sw_update"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "lambda-test-runner",
+                "Category": "testing",
+                "Runtime": "python3.9",
+                "VPC": "enabled"
+            }
+        },
+        "presigned-url-s3-upload": {
+            "description": "Generates presigned URLs for S3 file uploads",
+            "runtime": "python3.9",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 128,
+            "timeout": 10,
+            "role_name": "lambda_s3_execution",
+            "vpc_enabled": false,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "presigned-url-s3-upload",
+                "Category": "s3",
+                "Runtime": "python3.9"
+            }
+        },
+        "software-event-update-handler": {
+            "description": "Handles software update events and notifications",
+            "runtime": "python3.9",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 128,
+            "timeout": 10,
+            "role_name": "sf_update_lambda_role",
+            "vpc_enabled": false,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}",
+                    "DYNAMODB_TABLE": "sw_update"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "software-event-update-handler",
+                "Category": "events",
+                "Runtime": "python3.9"
+            }
+        },
+        "sync-clock": {
+            "description": "Synchronizes system clock and returns current timestamp",
+            "runtime": "python3.12",
+            "handler": "lambda_function.lambda_handler",
+            "memory_size": 128,
+            "timeout": 3,
+            "role_name": "lambda-vpc-role",
+            "vpc_enabled": true,
+            "layers": null,
+            "environment_variables": {
+                "base": {
+                    "ENVIRONMENT": "${environment}"
+                },
+                "dev": {},
+                "staging": {}
+            },
+            "tags": {
+                "Function": "sync-clock",
+                "Category": "utilities",
+                "Runtime": "python3.12",
+                "VPC": "enabled"
+            }
+        }
+    },
+    "excluded_functions": [
+        "internal-router",
+        "brainsway-api-router-dev"
+    ],
+    "excluded_functions_reason": "These functions are managed by API Gateway infrastructure and should not be deployed via Lambda CI/CD pipeline",
+    "deployment_settings": {
+        "default_timeout": 30,
+        "max_memory_size": 3008,
+        "default_retry_attempts": 3,
+        "health_check_timeout": 60,
+        "rollback_enabled": true,
+        "backup_retention_days": 30
+    },
+    "quality_gates": {
+        "code_quality": {
+            "pylint_min_score": 8.0,
+            "black_formatting": true,
+            "bandit_security_scan": true
+        },
+        "testing": {
+            "unit_tests_required": true,
+            "min_coverage_percentage": 80,
+            "integration_tests": true
+        },
+        "performance": {
+            "max_cold_start_ms": 10000,
+            "max_execution_time_percentage": 80,
+            "memory_efficiency_check": true
+        }
+    },
+    "monitoring": {
+        "cloudwatch_logs_retention_days": 14,
+        "metrics_enabled": true,
+        "x_ray_tracing": false,
+        "error_rate_threshold": 5.0,
+        "duration_threshold_ms": 30000
+    }
+}
