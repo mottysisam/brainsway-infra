@@ -25,7 +25,7 @@ dependency "route53" {
     zone_id     = "Z1D633PJN98FT9"
     domain_name = "dev.brainsway.cloud"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
 
 inputs = {

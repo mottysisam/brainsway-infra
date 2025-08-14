@@ -30,8 +30,8 @@ inputs = {
   environment_variables = {
     ENVIRONMENT     = "dev"
     API_DOMAIN      = "api.dev.brainsway.cloud"
-    LOG_LEVEL       = "INFO"
-    CORS_ORIGINS    = "*"  # More restrictive in staging/prod
+    LOG_LEVEL       = "DEBUG"  # More verbose logging for dev
+    CORS_ORIGINS    = "https://dev.brainsway.cloud,https://app-dev.brainsway.cloud,http://localhost:3000,http://localhost:8080"
   }
   
   # Dead Letter Queue

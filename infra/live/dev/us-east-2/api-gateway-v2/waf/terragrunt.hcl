@@ -24,7 +24,7 @@ dependency "api_gateway" {
   mock_outputs = {
     api_arn = "arn:aws:apigateway:us-east-2::/restapis/abcdef123456/stages/v1"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
 
 inputs = {
