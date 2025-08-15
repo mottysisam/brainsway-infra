@@ -71,7 +71,7 @@ jobs:
     name: "🏗️ Infrastructure"
     needs: route-pipeline
     if: needs.route-pipeline.outputs.run_infrastructure == 'true'
-    uses: ./.github/workflows/infra/infra-simple.yml
+    uses: .github/workflows/infra/infra-simple.yml
     with:
       environment: "dev"
       action: "plan"
