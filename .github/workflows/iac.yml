@@ -73,8 +73,8 @@ jobs:
     if: needs.route-pipeline.outputs.run_infrastructure == 'true'
     uses: ./.github/workflows/infra/infra-simple.yml
     with:
-      environment: ${{ github.event_name == 'pull_request' && 'dev' || 'staging' }}
-      action: ${{ github.event_name == 'pull_request' && 'plan' || 'deploy' }}
+      environment: "dev"
+      action: "plan"
     secrets: inherit
   
   # Application Pipeline (for now, just detect until workflows are established) 
