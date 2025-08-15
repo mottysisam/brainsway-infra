@@ -57,7 +57,7 @@ This migration moves deprecated and legacy infrastructure configurations to the 
 - Old deployment report files
 
 ### Root Directory Cleanup
-- Moved secrets.txt to leftovers/documentation/ (contained sensitive AWS credentials)
+- Removed secrets.txt (contained sensitive AWS credentials - excluded from repository)
 - Moved validation.txt to leftovers/documentation/ (AWS DNS validation guide)
 - Moved lambda-deploy-config.json to scripts/ directory
 - Removed venv/ directory (Python virtual environment)

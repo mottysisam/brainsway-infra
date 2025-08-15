@@ -38,8 +38,9 @@ infra/
 digger.yml                   # Digger config with multi-env support
 bootstrap/                   # one-off TF for state + OIDC
 MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
-
-plans/                       # Execution plans per CLAUDE.md protocol
+pre-plans/                   # 
+plans/                       # Execution plans per CLAUDE.md protocol (ensure DATE & TIME is there)
+claude-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code 
 ```
 
 ## State & provider (must hold)
