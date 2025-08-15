@@ -10,6 +10,8 @@
 * PR‑driven CI/CD via **Digger on GitHub Actions**.
 * **Prod is read‑only**: *plan/import only*, no applies. Dev/Staging are writable via PR gates.
 
+IMPORTANT: Start each message with MESSAGE-STARTED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-STARTED followed by your response, use this bash function: echo "MESSAGE-STARTED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-STARTED"
+
 ## Canonical environments
 
 * **prod** → `154948530138` | profile **bwamazonprod** | 🔴 **READ‑ONLY**
@@ -38,9 +40,9 @@ infra/
 digger.yml                   # Digger config with multi-env support
 bootstrap/                   # one-off TF for state + OIDC
 MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
-pre-plans/                   # 
+pre-plans/                   # Pre-Execution (plan suggestions) - ensure DATE & TIME
 plans/                       # Execution plans per CLAUDE.md protocol (ensure DATE & TIME is there)
-claude-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code 
+/Users/motty/claude-code/claude-code-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code 
 ```
 
 ## State & provider (must hold)
@@ -164,4 +166,7 @@ terragrunt plan
 # (Prod) Only plan/import; do not apply
 ```
 
+IMPORTANT: End each message with MESSAGE-ENDED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-ENDED followed by your response, use this bash function: echo "MESSAGE-ENDED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-ENDED"
+
 **This file is the truth.** If reality drifts (e.g., prod applies creep in), update this doc **and** the CI to enforce the rule.
+
