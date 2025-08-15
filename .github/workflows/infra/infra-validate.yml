@@ -1,0 +1,140 @@
+name: Validate Infrastructure
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  syntax:
+    name: "🔍 Terraform Syntax Check - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔧 Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      
+      - name: "📦 Install Terragrunt"
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+      
+      - name: "✅ Validate Terraform Syntax"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo "🔍 Validating Terraform syntax for ${{ inputs.environment }}..."
+          
+          # Find all Terragrunt configurations
+          MODULES=$(find . -name "terragrunt.hcl" -type f | xargs -n1 dirname | sort)
+          
+          for MODULE in $MODULES; do
+            echo "  Checking: $MODULE"
+            cd "$MODULE"
+            
+            # Initialize without backend
+            terragrunt init -backend=false 2>/dev/null || true
+            
+            # Validate syntax
+            if terragrunt validate -no-color 2>/dev/null; then
+              echo "    ✅ Valid"
+            else
+              echo "    ❌ Invalid syntax in $MODULE"
+              exit 1
+            fi
+            
+            cd - > /dev/null
+          done
+          
+          echo "✅ All modules have valid syntax"
+  
+  state-backend:
+    name: "🗄️ State Backend Check - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🗄️ Check State Backend"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo "🗄️ Checking state backend for ${{ inputs.environment }}..."
+          
+          # Extract state bucket from env.hcl
+          STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
+          LOCK_TABLE=$(grep 'lock_table' env.hcl | cut -d'"' -f2)
+          
+          echo "  State Bucket: $STATE_BUCKET"
+          echo "  Lock Table: $LOCK_TABLE"
+          
+          # Check if state bucket exists
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "  ✅ State bucket exists"
+          else
+            echo "  ⚠️ State bucket does not exist"
+            if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "staging" ]; then
+              echo "  📝 Manual bootstrap required for ${{ inputs.environment }}"
+              echo "  See BOOTSTRAP_PROMPT.md for instructions"
+              exit 0  # Don't fail for missing bootstrap
+            else
+              echo "  ❌ State backend missing for ${{ inputs.environment }}"
+              exit 1
+            fi
+          fi
+          
+          # Check if lock table exists
+          if aws dynamodb describe-table --table-name "$LOCK_TABLE" >/dev/null 2>&1; then
+            echo "  ✅ Lock table exists"
+          else
+            echo "  ⚠️ Lock table does not exist"
+          fi
+  
+  dependencies:
+    name: "📦 Module Dependencies - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔍 Check Module Dependencies"
+        run: |
+          echo "📦 Checking module dependencies..."
+          
+          # Check if all referenced modules exist
+          MODULES_DIR="infra/modules"
+          LIVE_DIR="infra/live/${{ inputs.environment }}"
+          
+          # Find all module references
+          MODULE_REFS=$(grep -r 'source.*\.\.\/\.\.\/\.\.\/\.\.\/modules' "$LIVE_DIR" | \
+            sed -E 's/.*modules\/([^"]+).*/\1/' | sort -u)
+          
+          MISSING_MODULES=""
+          for MODULE in $MODULE_REFS; do
+            if [ -d "$MODULES_DIR/$MODULE" ]; then
+              echo "  ✅ Module exists: $MODULE"
+            else
+              echo "  ❌ Missing module: $MODULE"
+              MISSING_MODULES="$MISSING_MODULES $MODULE"
+            fi
+          done
+          
+          if [ -n "$MISSING_MODULES" ]; then
+            echo "❌ Missing modules:$MISSING_MODULES"
+            exit 1
+          else
+            echo "✅ All module dependencies satisfied"
+          fi

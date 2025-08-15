@@ -1,0 +1,153 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      changed_modules:
+        required: false
+        type: string
+        default: '{}'
+
+jobs:
+  pre-deploy-checks:
+    name: "🔍 Pre-Deploy Checks - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    outputs:
+      can_deploy: ${{ steps.check.outputs.can_deploy }}
+    
+    steps:
+      - name: "🔒 Check Environment Permissions"
+        id: check
+        run: |
+          echo "🔒 Checking deployment permissions for ${{ inputs.environment }}..."
+          
+          # Production is read-only
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo "❌ Production is READ-ONLY in this repository"
+            echo "can_deploy=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Check if we're on main branch for auto-deploy
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "✅ On main branch - deployment allowed"
+            echo "can_deploy=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "✅ Manual trigger - deployment allowed"
+            echo "can_deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Not on main branch - skipping deployment"
+            echo "can_deploy=false" >> $GITHUB_OUTPUT
+          fi
+  
+  terragrunt-apply:
+    name: "🚀 Terragrunt Apply - ${{ inputs.environment }}"
+    needs: pre-deploy-checks
+    if: needs.pre-deploy-checks.outputs.can_deploy == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🔧 Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      
+      - name: "📦 Install Terragrunt"
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+      
+      - name: "🧹 Clear Terragrunt Cache"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo "🧹 Clearing Terragrunt cache..."
+          find . -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null || true
+      
+      - name: "🚀 Deploy Infrastructure"
+        id: deploy
+        working-directory: infra/live/${{ inputs.environment }}
+        env:
+          TF_IN_AUTOMATION: 1
+          TF_INPUT: 0
+        run: |
+          echo "🚀 Deploying infrastructure to ${{ inputs.environment }}..."
+          echo ""
+          
+          # Different parallelism for different environments
+          if [ "${{ inputs.environment }}" = "dev" ]; then
+            PARALLELISM=4
+          else
+            PARALLELISM=2
+          fi
+          
+          # Run terragrunt apply
+          DEPLOY_OUTPUT_FILE="deploy-${{ inputs.environment }}-$(date +%s).txt"
+          
+          if terragrunt run-all apply -auto-approve -no-color -parallelism $PARALLELISM 2>&1 | tee "$DEPLOY_OUTPUT_FILE"; then
+            echo "✅ Deployment completed successfully"
+            echo "deploy_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Deployment failed"
+            echo "deploy_status=failed" >> $GITHUB_OUTPUT
+            
+            # Extract error details
+            echo "### Error Details:"
+            grep -E "Error:|Failed:" "$DEPLOY_OUTPUT_FILE" | head -20
+            exit 1
+          fi
+      
+      - name: "💾 Upload Deploy Logs"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-logs-${{ inputs.environment }}
+          path: infra/live/${{ inputs.environment }}/deploy-*.txt
+          retention-days: 30
+  
+  post-deploy-validation:
+    name: "✅ Post-Deploy Validation - ${{ inputs.environment }}"
+    needs: terragrunt-apply
+    if: always() && needs.terragrunt-apply.result == 'success'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🔍 Quick Resource Check"
+        run: |
+          echo "🔍 Running post-deployment validation..."
+          
+          # Quick checks to ensure resources were created
+          echo "  Checking Lambda functions..."
+          aws lambda list-functions --query 'Functions[].FunctionName' --output text
+          
+          echo "  Checking API Gateways..."
+          aws apigatewayv2 get-apis --query 'Items[].Name' --output text
+          
+          echo "  Checking S3 buckets..."
+          aws s3 ls
+          
+          echo "✅ Post-deployment validation complete"

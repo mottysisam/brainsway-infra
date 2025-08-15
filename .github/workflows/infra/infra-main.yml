@@ -1,0 +1,109 @@
+name: Infrastructure Pipeline
+run-name: "Infra: ${{ github.event_name == 'pull_request' && 'Plan' || 'Deploy' }} - ${{ github.ref_name }}"
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra/**'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+
+concurrency:
+  group: infra-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Stage 1: Detect what changed
+  detect-changes:
+    name: "🔍 Detect Changes"
+    uses: ./.github/workflows/infra/infra-detect-changes.yml
+    with:
+      trigger_event: ${{ github.event_name }}
+    
+  # Stage 2: Validate Terraform syntax and configuration
+  validate:
+    name: "✅ Validate"
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.has_changes == 'true' }}
+    strategy:
+      matrix:
+        environment: ${{ fromJSON(needs.detect-changes.outputs.environments) }}
+    uses: ./.github/workflows/infra/infra-validate.yml
+    with:
+      environment: ${{ matrix.environment }}
+    secrets: inherit
+    
+  # Stage 3: Plan infrastructure changes
+  plan:
+    name: "📋 Plan"
+    needs: [detect-changes, validate]
+    if: ${{ needs.detect-changes.outputs.has_changes == 'true' }}
+    strategy:
+      matrix:
+        environment: ${{ fromJSON(needs.detect-changes.outputs.environments) }}
+    uses: ./.github/workflows/infra/infra-plan.yml
+    with:
+      environment: ${{ matrix.environment }}
+      changed_modules: ${{ needs.detect-changes.outputs.changed_modules }}
+    secrets: inherit
+    
+  # Stage 4: Deploy infrastructure (only on main branch or manual trigger)
+  deploy:
+    name: "🚀 Deploy"
+    needs: [detect-changes, plan]
+    if: |
+      needs.detect-changes.outputs.has_changes == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    strategy:
+      matrix:
+        environment: ${{ fromJSON(needs.detect-changes.outputs.environments) }}
+    uses: ./.github/workflows/infra/infra-deploy.yml
+    with:
+      environment: ${{ matrix.environment }}
+      changed_modules: ${{ needs.detect-changes.outputs.changed_modules }}
+    secrets: inherit
+    
+  # Stage 5: Verify infrastructure resources exist
+  verify:
+    name: "🔍 Verify Resources"
+    needs: [detect-changes, deploy]
+    if: always() && needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      matrix:
+        environment: ${{ fromJSON(needs.detect-changes.outputs.environments) }}
+    uses: ./.github/workflows/infra/infra-verify.yml
+    with:
+      environment: ${{ matrix.environment }}
+      action: ${{ github.event_name == 'push' ? 'deploy' : 'plan' }}
+    secrets: inherit
+    
+  # Stage 6: Generate summary report
+  report:
+    name: "📊 Report"
+    needs: [detect-changes, plan, deploy, verify]
+    if: always()
+    uses: ./.github/workflows/reports/report-infra.yml
+    with:
+      environments: ${{ needs.detect-changes.outputs.environments }}
+      status: ${{ needs.verify.result }}
+    secrets: inherit
