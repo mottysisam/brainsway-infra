@@ -1,0 +1,4 @@
+{
+    "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"27289150-028b-505c-baa9-ca32b8ac448e\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-2:154948530138:function:sync_clock\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-2:154948530138:lc0kt8b3p5/*/*/ANY\"}}},{\"Sid\":\"9bb387d0-6299-5025-a18d-04b650287457\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-2:154948530138:function:sync_clock\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-2:154948530138:lc0kt8b3p5/*/*/load\"}}}]}",
+    "RevisionId": "840733c2-7091-4086-962c-d993f3ad834e"
+}

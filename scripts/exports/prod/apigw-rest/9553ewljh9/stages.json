@@ -1,0 +1,41 @@
+{
+    "item": [
+        {
+            "deploymentId": "xgs3z3",
+            "stageName": "prod",
+            "description": "production",
+            "cacheClusterEnabled": false,
+            "cacheClusterSize": "0.5",
+            "cacheClusterStatus": "NOT_AVAILABLE",
+            "methodSettings": {
+                "*/*": {
+                    "metricsEnabled": false,
+                    "loggingLevel": "OFF",
+                    "dataTraceEnabled": false,
+                    "throttlingBurstLimit": 5000,
+                    "throttlingRateLimit": 10000.0,
+                    "cachingEnabled": false,
+                    "cacheTtlInSeconds": 300,
+                    "cacheDataEncrypted": false,
+                    "requireAuthorizationForCacheControl": true,
+                    "unauthorizedCacheControlHeaderStrategy": "SUCCEED_WITH_RESPONSE_HEADER"
+                },
+                "~1s3url/GET": {
+                    "metricsEnabled": false,
+                    "loggingLevel": "INFO",
+                    "dataTraceEnabled": true,
+                    "throttlingBurstLimit": 5000,
+                    "throttlingRateLimit": 10000.0,
+                    "cachingEnabled": false,
+                    "cacheTtlInSeconds": 300,
+                    "cacheDataEncrypted": false,
+                    "requireAuthorizationForCacheControl": true,
+                    "unauthorizedCacheControlHeaderStrategy": "SUCCEED_WITH_RESPONSE_HEADER"
+                }
+            },
+            "tracingEnabled": false,
+            "createdDate": "2017-09-10T11:03:37+03:00",
+            "lastUpdatedDate": "2019-07-09T12:59:32+03:00"
+        }
+    ]
+}

@@ -1,0 +1,4 @@
+{
+    "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"38f63558f5ff3f508d3a7985dab1f774\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-2:154948530138:function:softwareUpdateHandler\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-2:154948530138:j1w31ky0s3/*/POST/swups\"}}}]}",
+    "RevisionId": "20028a14-eee7-4b99-b32b-8d9a364c58d8"
+}

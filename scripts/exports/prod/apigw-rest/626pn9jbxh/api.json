@@ -1,0 +1,14 @@
+{
+    "id": "626pn9jbxh",
+    "name": "dev-insert-ppu-data",
+    "createdDate": "2019-01-14T15:45:47+02:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "EDGE"
+        ]
+    },
+    "tags": {},
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "hryogq0yt9"
+}

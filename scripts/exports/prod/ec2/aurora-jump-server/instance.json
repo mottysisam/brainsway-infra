@@ -1,0 +1,165 @@
+{
+    "Reservations": [
+        {
+            "ReservationId": "r-0004b0b143f612350",
+            "OwnerId": "154948530138",
+            "Groups": [],
+            "Instances": [
+                {
+                    "Architecture": "x86_64",
+                    "BlockDeviceMappings": [
+                        {
+                            "DeviceName": "/dev/xvda",
+                            "Ebs": {
+                                "AttachTime": "2022-09-14T06:10:34+00:00",
+                                "DeleteOnTermination": true,
+                                "Status": "attached",
+                                "VolumeId": "vol-0e5f44e4878b077ed"
+                            }
+                        }
+                    ],
+                    "ClientToken": "",
+                    "EbsOptimized": true,
+                    "EnaSupport": true,
+                    "Hypervisor": "xen",
+                    "IamInstanceProfile": {
+                        "Arn": "arn:aws:iam::154948530138:instance-profile/AmazonEC2RoleForSSM",
+                        "Id": "AIPASIE5G57NBP7RWSJK5"
+                    },
+                    "NetworkInterfaces": [
+                        {
+                            "Association": {
+                                "IpOwnerId": "154948530138",
+                                "PublicDnsName": "ec2-3-12-69-144.us-east-2.compute.amazonaws.com",
+                                "PublicIp": "3.12.69.144"
+                            },
+                            "Attachment": {
+                                "AttachTime": "2022-09-14T06:10:33+00:00",
+                                "AttachmentId": "eni-attach-07f4d35db2ae8dbc1",
+                                "DeleteOnTermination": true,
+                                "DeviceIndex": 0,
+                                "Status": "attached",
+                                "NetworkCardIndex": 0
+                            },
+                            "Description": "",
+                            "Groups": [
+                                {
+                                    "GroupId": "sg-00a1abc08cd804a5d",
+                                    "GroupName": "launch-wizard-1"
+                                }
+                            ],
+                            "Ipv6Addresses": [],
+                            "MacAddress": "0a:ba:fc:8e:17:e2",
+                            "NetworkInterfaceId": "eni-04aef94f0bae1f160",
+                            "OwnerId": "154948530138",
+                            "PrivateDnsName": "ip-172-31-33-3.us-east-2.compute.internal",
+                            "PrivateIpAddress": "172.31.33.3",
+                            "PrivateIpAddresses": [
+                                {
+                                    "Association": {
+                                        "IpOwnerId": "154948530138",
+                                        "PublicDnsName": "ec2-3-12-69-144.us-east-2.compute.amazonaws.com",
+                                        "PublicIp": "3.12.69.144"
+                                    },
+                                    "Primary": true,
+                                    "PrivateDnsName": "ip-172-31-33-3.us-east-2.compute.internal",
+                                    "PrivateIpAddress": "172.31.33.3"
+                                }
+                            ],
+                            "SourceDestCheck": true,
+                            "Status": "in-use",
+                            "SubnetId": "subnet-40895a0d",
+                            "VpcId": "vpc-d2a9d9bb",
+                            "InterfaceType": "interface",
+                            "Operator": {
+                                "Managed": false
+                            }
+                        }
+                    ],
+                    "RootDeviceName": "/dev/xvda",
+                    "RootDeviceType": "ebs",
+                    "SecurityGroups": [
+                        {
+                            "GroupId": "sg-00a1abc08cd804a5d",
+                            "GroupName": "launch-wizard-1"
+                        }
+                    ],
+                    "SourceDestCheck": true,
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "aurora-jump-server"
+                        }
+                    ],
+                    "VirtualizationType": "hvm",
+                    "CpuOptions": {
+                        "CoreCount": 1,
+                        "ThreadsPerCore": 2
+                    },
+                    "CapacityReservationSpecification": {
+                        "CapacityReservationPreference": "open"
+                    },
+                    "HibernationOptions": {
+                        "Configured": false
+                    },
+                    "MetadataOptions": {
+                        "State": "applied",
+                        "HttpTokens": "optional",
+                        "HttpPutResponseHopLimit": 1,
+                        "HttpEndpoint": "enabled",
+                        "HttpProtocolIpv6": "disabled",
+                        "InstanceMetadataTags": "disabled"
+                    },
+                    "EnclaveOptions": {
+                        "Enabled": false
+                    },
+                    "PlatformDetails": "Linux/UNIX",
+                    "UsageOperation": "RunInstances",
+                    "UsageOperationUpdateTime": "2022-09-14T06:10:33+00:00",
+                    "PrivateDnsNameOptions": {
+                        "HostnameType": "ip-name",
+                        "EnableResourceNameDnsARecord": true,
+                        "EnableResourceNameDnsAAAARecord": false
+                    },
+                    "MaintenanceOptions": {
+                        "AutoRecovery": "default",
+                        "RebootMigration": "default"
+                    },
+                    "CurrentInstanceBootMode": "legacy-bios",
+                    "NetworkPerformanceOptions": {
+                        "BandwidthWeighting": "default"
+                    },
+                    "Operator": {
+                        "Managed": false
+                    },
+                    "InstanceId": "i-0516613576e30a972",
+                    "ImageId": "ami-0568773882d492fc8",
+                    "State": {
+                        "Code": 16,
+                        "Name": "running"
+                    },
+                    "PrivateDnsName": "ip-172-31-33-3.us-east-2.compute.internal",
+                    "PublicDnsName": "ec2-3-12-69-144.us-east-2.compute.amazonaws.com",
+                    "StateTransitionReason": "",
+                    "KeyName": "aurora-jump-server",
+                    "AmiLaunchIndex": 0,
+                    "ProductCodes": [],
+                    "InstanceType": "t3.micro",
+                    "LaunchTime": "2025-08-04T10:03:13+00:00",
+                    "Placement": {
+                        "GroupName": "",
+                        "Tenancy": "default",
+                        "AvailabilityZone": "us-east-2c"
+                    },
+                    "Monitoring": {
+                        "State": "disabled"
+                    },
+                    "SubnetId": "subnet-40895a0d",
+                    "VpcId": "vpc-d2a9d9bb",
+                    "PrivateIpAddress": "172.31.33.3",
+                    "PublicIpAddress": "3.12.69.144"
+                }
+            ]
+        }
+    ]
+}

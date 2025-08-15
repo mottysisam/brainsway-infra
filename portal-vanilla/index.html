@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brainsway Infrastructure Portal</title>
+    <meta name="description" content="Interactive deployment report dashboard for Brainsway AWS infrastructure">
+    <meta name="author" content="Brainsway">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+    <div id="app" class="min-h-screen bg-gray-50">
+        <!-- Loading State -->
+        <div id="loading-state" class="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div class="text-center">
+                <div class="loading-spinner mx-auto mb-4"></div>
+                <p class="text-gray-600">Loading deployment reports...</p>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="min-h-screen bg-gray-50 flex items-center justify-center" style="display: none;">
+            <div class="text-center">
+                <div class="error-icon text-red-500 mx-auto mb-4"></div>
+                <p id="error-message" class="text-red-600 mb-4">Failed to load deployment reports</p>
+                <button id="retry-button" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                    Try Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content" class="max-w-7xl mx-auto px-4 py-8" style="display: none;">
+            <!-- Header -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">
+                            Brainsway Infrastructure Portal
+                        </h1>
+                        <p class="mt-2 text-gray-600">
+                            Interactive deployment report dashboard for AWS infrastructure
+                        </p>
+                    </div>
+                    <button id="refresh-button" class="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                        <div class="refresh-icon"></div>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div id="stats-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Total Deployments -->
+                <div class="stat-card bg-white rounded-lg shadow-sm border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Total Deployments</p>
+                            <p id="total-deployments" class="text-3xl font-bold text-gray-900">0</p>
+                        </div>
+                        <div class="p-3 bg-blue-100 rounded-full">
+                            <div class="chart-icon text-blue-600"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="text-sm text-gray-500">
+                            Across all environments
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success Rate -->
+                <div class="stat-card bg-white rounded-lg shadow-sm border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Success Rate</p>
+                            <p id="success-rate" class="text-3xl font-bold text-green-600">0%</p>
+                        </div>
+                        <div class="p-3 bg-green-100 rounded-full">
+                            <div class="check-icon text-green-600"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="text-sm text-gray-500">
+                            Overall success rate
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Average Duration -->
+                <div class="stat-card bg-white rounded-lg shadow-sm border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Avg Duration</p>
+                            <p id="avg-duration" class="text-3xl font-bold text-blue-600">0m 0s</p>
+                        </div>
+                        <div class="p-3 bg-blue-100 rounded-full">
+                            <div class="clock-icon text-blue-600"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="text-sm text-gray-500">
+                            Average deployment time
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Failed Deployments -->
+                <div class="stat-card bg-white rounded-lg shadow-sm border p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-600">Failed</p>
+                            <p id="failed-count" class="text-3xl font-bold text-red-600">0</p>
+                        </div>
+                        <div class="p-3 bg-red-100 rounded-full">
+                            <div class="x-icon text-red-600"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div id="failure-rate" class="text-sm text-gray-500">
+                            0% failure rate
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environment Breakdown -->
+                <div class="md:col-span-2 lg:col-span-4 bg-white rounded-lg shadow-sm border p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Environment Breakdown</h3>
+                    <div id="environment-stats" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Environment cards will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white rounded-lg shadow-sm border p-6 mb-8">
+                <div class="flex items-center space-x-4 mb-4">
+                    <div class="filter-icon text-gray-500"></div>
+                    <h3 class="text-lg font-semibold text-gray-900">Filters</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="relative">
+                        <div class="search-icon absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></div>
+                        <input 
+                            id="branch-filter" 
+                            type="text" 
+                            placeholder="Search branches..." 
+                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                    </div>
+                    <select id="environment-filter" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Environments</option>
+                        <option value="dev">Development</option>
+                        <option value="staging">Staging</option>
+                        <option value="prod">Production</option>
+                    </select>
+                    <select id="status-filter" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">All Statuses</option>
+                        <option value="success">Success</option>
+                        <option value="failed">Failed</option>
+                        <option value="running">Running</option>
+                    </select>
+                    <input 
+                        id="author-filter" 
+                        type="text" 
+                        placeholder="Filter by author..." 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                </div>
+            </div>
+
+            <!-- Reports Section -->
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">
+                    Deployment Reports
+                    <span id="results-count" class="ml-2 text-sm font-normal text-gray-500">
+                        (0 results)
+                    </span>
+                </h2>
+            </div>
+
+            <!-- No Results Message -->
+            <div id="no-results" class="text-center py-12" style="display: none;">
+                <div class="no-results-icon text-gray-400 mb-4 mx-auto"></div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
+                <p id="no-results-message" class="text-gray-600">
+                    No deployment reports are available yet.
+                </p>
+            </div>
+
+            <!-- Reports Grid -->
+            <div id="reports-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Report cards will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Report Detail Modal -->
+        <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" style="display: none;">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-2xl font-bold text-gray-900">
+                            Deployment Details
+                        </h3>
+                        <button id="close-modal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                            <span class="sr-only">Close</span>
+                            <div class="close-icon"></div>
+                        </button>
+                    </div>
+                    
+                    <div id="modal-content" class="space-y-6">
+                        <!-- Modal content will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

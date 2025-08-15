@@ -13,7 +13,6 @@
 IMPORTANT: Start each message with MESSAGE-STARTED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-STARTED followed by your response, use this bash function: echo "MESSAGE-STARTED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-STARTED"
 
 ## Canonical environments
-
 * **prod** → `154948530138` | profile **bwamazonprod** | 🔴 **READ‑ONLY**
 * **staging** → `574210586915` | profile **bwamazonstaging**
 * **dev** → `824357028182` | profile **bwamazondev**
@@ -42,7 +41,8 @@ bootstrap/                   # one-off TF for state + OIDC
 MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
 pre-plans/                   # Pre-Execution (plan suggestions) - ensure DATE & TIME
 plans/                       # Execution plans per CLAUDE.md protocol (ensure DATE & TIME is there)
-/Users/motty/claude-code/claude-code-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code 
+leftovers/                   # Deprecated/legacy configurations moved during cleanup
+/Users/motty/claude-code/claude-code-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code
 ```
 
 ## State & provider (must hold)
@@ -169,4 +169,3 @@ terragrunt plan
 IMPORTANT: End each message with MESSAGE-ENDED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-ENDED followed by your response, use this bash function: echo "MESSAGE-ENDED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-ENDED"
 
 **This file is the truth.** If reality drifts (e.g., prod applies creep in), update this doc **and** the CI to enforce the rule.
-
