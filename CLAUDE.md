@@ -38,6 +38,7 @@ infra/
 digger.yml                   # Digger config with multi-env support
 bootstrap/                   # one-off TF for state + OIDC
 MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
+
 plans/                       # Execution plans per CLAUDE.md protocol
 ```
 
