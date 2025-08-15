@@ -20,7 +20,7 @@ locals {
 
 # Dependencies
 dependencies {
-  paths = ["../acm", "../route53", "../lambda", "../internal-router"]
+  paths = ["../acm", "../route53", "../lambda"]
 }
 
 dependency "acm" {
@@ -54,12 +54,12 @@ dependency "lambda" {
 }
 
 dependency "internal_router" {
-  config_path = "../internal-router"
+  config_path = "../lambda"
   
   mock_outputs = {
-    function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-internal-router"
-    function_name      = "brainsway-internal-router"
-    invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-internal-router/invocations"
+    internal_router_function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router"
+    internal_router_function_name      = "internal-router"
+    internal_router_invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -105,7 +105,7 @@ inputs = {
   
   # Internal Router Configuration (secure Lambda-to-Lambda routing)
   enable_internal_router                     = true
-  internal_router_lambda_arn                 = dependency.internal_router.outputs.function_arn
+  internal_router_lambda_arn                 = dependency.internal_router.outputs.internal_router_function_arn
   internal_router_allow_unauthenticated_get  = true  # Staging environment - allows simple GET calls without auth
   
   # Internal Router Security (staging environment - moderate restrictions)
