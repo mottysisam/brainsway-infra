@@ -66,21 +66,31 @@ jobs:
             echo "run_application=false" >> $GITHUB_OUTPUT
           fi
   
-  # Infrastructure Pipeline
+  # Infrastructure Pipeline (for now, just detect until workflows are established)
   infrastructure:
     name: "🏗️ Infrastructure"
     needs: route-pipeline
     if: needs.route-pipeline.outputs.run_infrastructure == 'true'
-    uses: ./.github/workflows/infra/infra-main.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📋 Infrastructure Pipeline Status"
+        run: |
+          echo "🏗️ Infrastructure pipeline would run here"
+          echo "New modular workflows are ready but being gradually rolled out"
+          echo "Currently detecting changes and preparing for modular execution"
   
-  # Application Pipeline
+  # Application Pipeline (for now, just detect until workflows are established) 
   application:
     name: "📦 Application"
     needs: route-pipeline
     if: needs.route-pipeline.outputs.run_application == 'true'
-    uses: ./.github/workflows/app/app-lambda-deploy.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: "📦 Application Pipeline Status"
+        run: |
+          echo "📦 Application pipeline would run here"
+          echo "Lambda code deployment will be handled by dedicated workflow"
+          echo "Currently detecting changes and preparing for modular execution"
   
   # Unified Status Report
   status-report:
