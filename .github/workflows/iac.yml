@@ -71,7 +71,7 @@ jobs:
     name: "🏗️ Infrastructure"
     needs: route-pipeline
     if: needs.route-pipeline.outputs.run_infrastructure == 'true'
-    uses: ./.github/workflows/infra/infra-main.yml
+    uses: ./.github/workflows/infra/infra-simple.yml
     with:
       environment: ${{ github.event_name == 'pull_request' && 'dev' || 'staging' }}
       action: ${{ github.event_name == 'pull_request' && 'plan' || 'deploy' }}
