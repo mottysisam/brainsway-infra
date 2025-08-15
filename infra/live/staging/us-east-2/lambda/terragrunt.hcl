@@ -12,7 +12,6 @@ inputs = {
   functions = {
     # Internal Router - Enhanced with parameter flattening
     "internal-router" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/internal-router"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda-vpc-role"
       handler       = "src/index.handler"
       runtime       = "nodejs20.x"
@@ -46,7 +45,6 @@ inputs = {
 
     # PPU Data Insert - Enhanced with error handling and body parsing
     "insert-ppu-data" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/insert-ppu-data"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda-vpc-role"
       handler       = "src/insertPPUData.handler"
       runtime       = "python3.9"
@@ -81,7 +79,6 @@ inputs = {
 
     # Generate Presigned URL - S3 software update downloads
     "generate-presigned-url" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/generate-presigned-url"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda_s3_execution"
       handler       = "src/lambda_function.lambda_handler"
       runtime       = "python3.9"
@@ -100,7 +97,6 @@ inputs = {
 
     # Presigned URL for S3 Upload
     "presigned-url-s3-upload" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/presigned-url-s3-upload"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda_s3_execution"
       handler       = "src/lambda_function.lambda_handler"
       runtime       = "python3.9"
@@ -119,7 +115,6 @@ inputs = {
 
     # Software Update Handler
     "software-update-handler" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/software-update-handler"
       role          = "arn:aws:iam::${local.aws_account}:role/sf_update_lambda_role"
       handler       = "src/lambda_function.lambda_handler"
       runtime       = "python3.9"
@@ -140,7 +135,6 @@ inputs = {
 
     # Sync Clock - Database time synchronization
     "sync-clock" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/sync-clock"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda-vpc-role"
       handler       = "src/lambda_function.lambda_handler"
       runtime       = "python3.12"
@@ -167,7 +161,6 @@ inputs = {
 
     # Lambda Test Runner - API-accessible testing system
     "lambda-test-runner" = {
-      source_dir    = "/Users/motty/code/brainsway-infra/infra/lambda-functions/lambda-test-runner"
       role          = "arn:aws:iam::${local.aws_account}:role/lambda-test-runner-role"
       handler       = "src/lambda_function.lambda_handler"
       runtime       = "python3.9"
