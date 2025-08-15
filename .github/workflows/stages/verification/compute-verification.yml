@@ -1,0 +1,415 @@
+name: Compute Verification
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  compute-verification:
+    name: "💻 Compute Verification - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "⚡ Lambda Function Verification"
+        run: |
+          echo "⚡ Verifying Lambda functions for ${{ inputs.environment }}..."
+          
+          # Find Lambda functions for this environment
+          LAMBDA_FUNCTIONS=$(aws lambda list-functions \
+            --query 'Functions[?Tags.Environment==`${{ inputs.environment }}`]' \
+            --output json 2>/dev/null || echo "[]")
+          
+          LAMBDA_COUNT=$(echo "$LAMBDA_FUNCTIONS" | jq length)
+          echo "📊 Lambda Function Count: $LAMBDA_COUNT"
+          echo "lambda_count=$LAMBDA_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$LAMBDA_COUNT" -gt 0 ]; then
+            echo "📋 Lambda Functions found:"
+            echo "$LAMBDA_FUNCTIONS" | jq -r '.[] | "  \(.FunctionName) - \(.Runtime) - \(.State)"'
+            
+            # Check function states
+            ACTIVE_FUNCTIONS=0
+            PENDING_FUNCTIONS=0
+            FAILED_FUNCTIONS=0
+            
+            echo ""
+            echo "🔍 Checking function states..."
+            
+            echo "$LAMBDA_FUNCTIONS" | jq -r '.[].FunctionName' | while read FUNCTION_NAME; do
+              if [ -n "$FUNCTION_NAME" ]; then
+                STATE=$(aws lambda get-function --function-name "$FUNCTION_NAME" --query 'Configuration.State' --output text)
+                LAST_UPDATE_STATUS=$(aws lambda get-function --function-name "$FUNCTION_NAME" --query 'Configuration.LastUpdateStatus' --output text)
+                
+                echo "  📋 $FUNCTION_NAME:"
+                echo "    State: $STATE"
+                echo "    Last Update: $LAST_UPDATE_STATUS"
+                
+                case "$STATE" in
+                  "Active")
+                    ACTIVE_FUNCTIONS=$((ACTIVE_FUNCTIONS + 1))
+                    ;;
+                  "Pending")
+                    PENDING_FUNCTIONS=$((PENDING_FUNCTIONS + 1))
+                    ;;
+                  "Failed")
+                    FAILED_FUNCTIONS=$((FAILED_FUNCTIONS + 1))
+                    ;;
+                esac
+              fi
+            done
+            
+            # Store counts (note: these won't persist from the while loop due to subshell)
+            # Re-calculate outside the loop
+            ACTIVE_FUNCTIONS=$(echo "$LAMBDA_FUNCTIONS" | jq -r '.[].FunctionName' | while read FUNCTION_NAME; do
+              if [ -n "$FUNCTION_NAME" ]; then
+                STATE=$(aws lambda get-function --function-name "$FUNCTION_NAME" --query 'Configuration.State' --output text 2>/dev/null)
+                if [ "$STATE" = "Active" ]; then
+                  echo "1"
+                fi
+              fi
+            done | wc -l)
+            
+            echo ""
+            echo "📊 Function States Summary:"
+            echo "  ✅ Active: $ACTIVE_FUNCTIONS"
+            echo "  ⏳ Pending: $PENDING_FUNCTIONS"
+            echo "  ❌ Failed: $FAILED_FUNCTIONS"
+            
+            echo "active_functions=$ACTIVE_FUNCTIONS" >> $GITHUB_OUTPUT
+            echo "pending_functions=$PENDING_FUNCTIONS" >> $GITHUB_OUTPUT
+            echo "failed_functions=$FAILED_FUNCTIONS" >> $GITHUB_OUTPUT
+            
+          else
+            echo "📝 No Lambda functions found for ${{ inputs.environment }}"
+            echo "active_functions=0" >> $GITHUB_OUTPUT
+            echo "pending_functions=0" >> $GITHUB_OUTPUT
+            echo "failed_functions=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "⚡ Lambda Function Health Check"
+        if: steps.lambda-verification.outputs.lambda_count > 0
+        run: |
+          echo "⚡ Performing Lambda function health checks..."
+          
+          # Get Lambda functions again for health checks
+          LAMBDA_FUNCTIONS=$(aws lambda list-functions \
+            --query 'Functions[?Tags.Environment==`${{ inputs.environment }}`].FunctionName' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$LAMBDA_FUNCTIONS" ]; then
+            echo "🔍 Testing function invocations..."
+            
+            HEALTHY_FUNCTIONS=0
+            UNHEALTHY_FUNCTIONS=0
+            
+            for FUNCTION_NAME in $LAMBDA_FUNCTIONS; do
+              if [ -n "$FUNCTION_NAME" ]; then
+                echo "  🧪 Testing: $FUNCTION_NAME"
+                
+                # Try a test invocation (dry run)
+                if aws lambda invoke \
+                  --function-name "$FUNCTION_NAME" \
+                  --invocation-type DryRun \
+                  --payload '{}' \
+                  /tmp/lambda-test-output 2>/dev/null; then
+                  echo "    ✅ Function is invokable"
+                  HEALTHY_FUNCTIONS=$((HEALTHY_FUNCTIONS + 1))
+                else
+                  echo "    ❌ Function invocation failed"
+                  UNHEALTHY_FUNCTIONS=$((UNHEALTHY_FUNCTIONS + 1))
+                fi
+                
+                # Check function configuration
+                TIMEOUT=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --query 'Timeout' --output text)
+                MEMORY=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --query 'MemorySize' --output text)
+                
+                echo "    ⚙️ Timeout: ${TIMEOUT}s, Memory: ${MEMORY}MB"
+                
+                # Check for reasonable timeout (warn if > 5 minutes)
+                if [ "$TIMEOUT" -gt 300 ]; then
+                  echo "    ⚠️ High timeout value: ${TIMEOUT}s"
+                fi
+              fi
+            done
+            
+            echo ""
+            echo "📊 Health Check Summary:"
+            echo "  ✅ Healthy Functions: $HEALTHY_FUNCTIONS"
+            echo "  ❌ Unhealthy Functions: $UNHEALTHY_FUNCTIONS"
+            
+            echo "healthy_functions=$HEALTHY_FUNCTIONS" >> $GITHUB_OUTPUT
+            echo "unhealthy_functions=$UNHEALTHY_FUNCTIONS" >> $GITHUB_OUTPUT
+            
+          else
+            echo "📝 No functions to health check"
+            echo "healthy_functions=0" >> $GITHUB_OUTPUT
+            echo "unhealthy_functions=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "🖥️ EC2 Instance Verification"
+        run: |
+          echo "🖥️ Verifying EC2 instances for ${{ inputs.environment }}..."
+          
+          # Find EC2 instances for this environment
+          EC2_INSTANCES=$(aws ec2 describe-instances \
+            --filters "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=instance-state-name,Values=running,stopped,stopping,pending" \
+            --query 'Reservations[*].Instances[*].{Id:InstanceId,Type:InstanceType,State:State.Name,AZ:Placement.AvailabilityZone}' \
+            --output table 2>/dev/null || echo "")
+          
+          if [ -n "$EC2_INSTANCES" ] && [ "$EC2_INSTANCES" != "" ]; then
+            echo "📋 EC2 Instances found:"
+            echo "$EC2_INSTANCES"
+            
+            # Count instances by state
+            TOTAL_INSTANCES=$(aws ec2 describe-instances \
+              --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
+              --query 'length(Reservations[*].Instances[*])' --output text)
+            
+            RUNNING_INSTANCES=$(aws ec2 describe-instances \
+              --filters "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=instance-state-name,Values=running" \
+              --query 'length(Reservations[*].Instances[*])' --output text)
+            
+            STOPPED_INSTANCES=$(aws ec2 describe-instances \
+              --filters "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=instance-state-name,Values=stopped" \
+              --query 'length(Reservations[*].Instances[*])' --output text)
+            
+            echo "📊 Instance Summary:"
+            echo "  Total: $TOTAL_INSTANCES"
+            echo "  Running: $RUNNING_INSTANCES"
+            echo "  Stopped: $STOPPED_INSTANCES"
+            
+            echo "ec2_total=$TOTAL_INSTANCES" >> $GITHUB_OUTPUT
+            echo "ec2_running=$RUNNING_INSTANCES" >> $GITHUB_OUTPUT
+            echo "ec2_stopped=$STOPPED_INSTANCES" >> $GITHUB_OUTPUT
+            
+          else
+            echo "📝 No EC2 instances found for ${{ inputs.environment }}"
+            echo "ec2_total=0" >> $GITHUB_OUTPUT
+            echo "ec2_running=0" >> $GITHUB_OUTPUT
+            echo "ec2_stopped=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "🚀 Auto Scaling Group Verification"
+        run: |
+          echo "🚀 Verifying Auto Scaling Groups for ${{ inputs.environment }}..."
+          
+          # Find Auto Scaling Groups
+          ASG_GROUPS=$(aws autoscaling describe-auto-scaling-groups \
+            --query 'AutoScalingGroups[?Tags[?Key==`Environment`&&Value==`${{ inputs.environment }}`]]' \
+            --output json 2>/dev/null || echo "[]")
+          
+          ASG_COUNT=$(echo "$ASG_GROUPS" | jq length)
+          echo "📊 Auto Scaling Group Count: $ASG_COUNT"
+          echo "asg_count=$ASG_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$ASG_COUNT" -gt 0 ]; then
+            echo "📋 Auto Scaling Groups found:"
+            echo "$ASG_GROUPS" | jq -r '.[] | "  \(.AutoScalingGroupName) - Desired: \(.DesiredCapacity), Min: \(.MinSize), Max: \(.MaxSize)"'
+            
+            # Check health of ASG instances
+            TOTAL_INSTANCES_IN_ASG=0
+            HEALTHY_INSTANCES_IN_ASG=0
+            
+            echo ""
+            echo "🔍 Checking ASG instance health..."
+            
+            echo "$ASG_GROUPS" | jq -r '.[].AutoScalingGroupName' | while read ASG_NAME; do
+              if [ -n "$ASG_NAME" ]; then
+                INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
+                  --auto-scaling-group-names "$ASG_NAME" \
+                  --query 'AutoScalingGroups[0].Instances[*].{Id:InstanceId,Health:HealthStatus,Lifecycle:LifecycleState}' \
+                  --output table)
+                
+                echo "  📋 $ASG_NAME instances:"
+                echo "$INSTANCES" | sed 's/^/    /'
+              fi
+            done
+            
+          else
+            echo "📝 No Auto Scaling Groups found for ${{ inputs.environment }}"
+          fi
+      
+      - name: "📦 ECS Cluster Verification"
+        run: |
+          echo "📦 Verifying ECS clusters for ${{ inputs.environment }}..."
+          
+          # Find ECS clusters
+          ECS_CLUSTERS=$(aws ecs list-clusters --query 'clusterArns' --output text 2>/dev/null || echo "")
+          
+          if [ -n "$ECS_CLUSTERS" ]; then
+            MATCHING_CLUSTERS=""
+            
+            for CLUSTER_ARN in $ECS_CLUSTERS; do
+              # Check if cluster has environment tag
+              CLUSTER_NAME=$(basename "$CLUSTER_ARN")
+              TAGS=$(aws ecs list-tags-for-resource --resource-arn "$CLUSTER_ARN" --query 'tags[?key==`Environment`&&value==`${{ inputs.environment }}`]' --output text 2>/dev/null || echo "")
+              
+              if [ -n "$TAGS" ]; then
+                MATCHING_CLUSTERS="$MATCHING_CLUSTERS $CLUSTER_NAME"
+              fi
+            done
+            
+            if [ -n "$MATCHING_CLUSTERS" ]; then
+              echo "📋 ECS Clusters found for ${{ inputs.environment }}:"
+              
+              CLUSTER_COUNT=0
+              ACTIVE_SERVICES=0
+              RUNNING_TASKS=0
+              
+              for CLUSTER_NAME in $MATCHING_CLUSTERS; do
+                CLUSTER_COUNT=$((CLUSTER_COUNT + 1))
+                echo "  📦 $CLUSTER_NAME"
+                
+                # Get cluster status
+                CLUSTER_STATUS=$(aws ecs describe-clusters --clusters "$CLUSTER_NAME" --query 'clusters[0].status' --output text)
+                echo "    Status: $CLUSTER_STATUS"
+                
+                # Count services
+                SERVICES=$(aws ecs list-services --cluster "$CLUSTER_NAME" --query 'serviceArns' --output text | wc -w)
+                ACTIVE_SERVICES=$((ACTIVE_SERVICES + SERVICES))
+                echo "    Services: $SERVICES"
+                
+                # Count running tasks
+                TASKS=$(aws ecs list-tasks --cluster "$CLUSTER_NAME" --desired-status RUNNING --query 'taskArns' --output text | wc -w)
+                RUNNING_TASKS=$((RUNNING_TASKS + TASKS))
+                echo "    Running Tasks: $TASKS"
+              done
+              
+              echo ""
+              echo "📊 ECS Summary:"
+              echo "  Clusters: $CLUSTER_COUNT"
+              echo "  Total Services: $ACTIVE_SERVICES"
+              echo "  Running Tasks: $RUNNING_TASKS"
+              
+              echo "ecs_clusters=$CLUSTER_COUNT" >> $GITHUB_OUTPUT
+              echo "ecs_services=$ACTIVE_SERVICES" >> $GITHUB_OUTPUT
+              echo "ecs_tasks=$RUNNING_TASKS" >> $GITHUB_OUTPUT
+              
+            else
+              echo "📝 No ECS clusters found for ${{ inputs.environment }}"
+              echo "ecs_clusters=0" >> $GITHUB_OUTPUT
+              echo "ecs_services=0" >> $GITHUB_OUTPUT
+              echo "ecs_tasks=0" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "📝 No ECS clusters found"
+            echo "ecs_clusters=0" >> $GITHUB_OUTPUT
+            echo "ecs_services=0" >> $GITHUB_OUTPUT
+            echo "ecs_tasks=0" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "📊 Compute Health Assessment"
+        run: |
+          echo "📊 Performing compute health assessment..."
+          
+          LAMBDA_COUNT="${{ steps.lambda-verification.outputs.lambda_count }}"
+          ACTIVE_FUNCTIONS="${{ steps.lambda-function-health-check.outputs.healthy_functions }}"
+          FAILED_FUNCTIONS="${{ steps.lambda-verification.outputs.failed_functions }}"
+          EC2_RUNNING="${{ steps.ec2-verification.outputs.ec2_running }}"
+          EC2_TOTAL="${{ steps.ec2-verification.outputs.ec2_total }}"
+          
+          echo "🏥 Compute Health Summary:"
+          echo "  Lambda Functions: $LAMBDA_COUNT (Active: $ACTIVE_FUNCTIONS, Failed: $FAILED_FUNCTIONS)"
+          echo "  EC2 Instances: $EC2_TOTAL (Running: $EC2_RUNNING)"
+          
+          # Determine overall health
+          HEALTH_SCORE=100
+          HEALTH_ISSUES=""
+          
+          # Lambda health impact
+          if [ "$LAMBDA_COUNT" -gt 0 ]; then
+            if [ "$FAILED_FUNCTIONS" -gt 0 ]; then
+              HEALTH_SCORE=$((HEALTH_SCORE - 20))
+              HEALTH_ISSUES="$HEALTH_ISSUES failed-lambdas"
+            fi
+            
+            if [ "$ACTIVE_FUNCTIONS" -lt "$LAMBDA_COUNT" ]; then
+              HEALTH_SCORE=$((HEALTH_SCORE - 10))
+              HEALTH_ISSUES="$HEALTH_ISSUES inactive-lambdas"
+            fi
+          fi
+          
+          # EC2 health impact
+          if [ "$EC2_TOTAL" -gt 0 ] && [ "$EC2_RUNNING" -eq 0 ]; then
+            HEALTH_SCORE=$((HEALTH_SCORE - 15))
+            HEALTH_ISSUES="$HEALTH_ISSUES no-running-ec2"
+          fi
+          
+          if [ $HEALTH_SCORE -ge 90 ]; then
+            echo "✅ Compute health: EXCELLENT ($HEALTH_SCORE/100)"
+            echo "compute_health=excellent" >> $GITHUB_OUTPUT
+          elif [ $HEALTH_SCORE -ge 70 ]; then
+            echo "✅ Compute health: GOOD ($HEALTH_SCORE/100)"
+            echo "compute_health=good" >> $GITHUB_OUTPUT
+          elif [ $HEALTH_SCORE -ge 50 ]; then
+            echo "⚠️ Compute health: FAIR ($HEALTH_SCORE/100)"
+            echo "compute_health=fair" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Compute health: POOR ($HEALTH_SCORE/100)"
+            echo "compute_health=poor" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -n "$HEALTH_ISSUES" ]; then
+            echo "🔍 Issues detected: $HEALTH_ISSUES"
+            echo "health_issues=$HEALTH_ISSUES" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "health_score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+      
+      - name: "📊 Generate Compute Report"
+        if: always()
+        run: |
+          echo "📊 Generating compute verification report..."
+          
+          cat > compute-report-${{ inputs.environment }}.json << EOF
+          {
+            "environment": "${{ inputs.environment }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "lambda": {
+              "total_functions": ${{ steps.lambda-verification.outputs.lambda_count || 0 }},
+              "active_functions": ${{ steps.lambda-function-health-check.outputs.healthy_functions || 0 }},
+              "failed_functions": ${{ steps.lambda-verification.outputs.failed_functions || 0 }},
+              "pending_functions": ${{ steps.lambda-verification.outputs.pending_functions || 0 }}
+            },
+            "ec2": {
+              "total_instances": ${{ steps.ec2-verification.outputs.ec2_total || 0 }},
+              "running_instances": ${{ steps.ec2-verification.outputs.ec2_running || 0 }},
+              "stopped_instances": ${{ steps.ec2-verification.outputs.ec2_stopped || 0 }}
+            },
+            "auto_scaling": {
+              "groups": ${{ steps.auto-scaling-verification.outputs.asg_count || 0 }}
+            },
+            "ecs": {
+              "clusters": ${{ steps.ecs-verification.outputs.ecs_clusters || 0 }},
+              "services": ${{ steps.ecs-verification.outputs.ecs_services || 0 }},
+              "running_tasks": ${{ steps.ecs-verification.outputs.ecs_tasks || 0 }}
+            },
+            "health": {
+              "score": ${{ steps.compute-health.outputs.health_score || 0 }},
+              "status": "${{ steps.compute-health.outputs.compute_health || 'unknown' }}",
+              "issues": "${{ steps.compute-health.outputs.health_issues || 'none' }}"
+            }
+          }
+          EOF
+          
+          echo "✅ Compute report generated: compute-report-${{ inputs.environment }}.json"
+      
+      - name: "💾 Upload Compute Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: compute-report-${{ inputs.environment }}
+          path: compute-report-${{ inputs.environment }}.json
+          retention-days: 14

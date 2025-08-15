@@ -1,0 +1,207 @@
+name: Terragrunt Plan
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  terragrunt-plan:
+    name: "📋 Terragrunt Plan - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🔧 Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      
+      - name: "📦 Install Terragrunt"
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+      
+      - name: "🧹 Clear Terragrunt Cache"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo "🧹 Clearing Terragrunt cache for clean plan..."
+          find . -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "✅ Cache cleared"
+      
+      - name: "📋 Execute Terragrunt Plan"
+        id: plan
+        working-directory: infra/live/${{ inputs.environment }}
+        env:
+          TF_IN_AUTOMATION: 1
+          TF_INPUT: 0
+        run: |
+          echo "📋 Running Terragrunt plan for ${{ inputs.environment }}..."
+          echo "🕐 Started at: $(date)"
+          echo ""
+          
+          # Create plan output file
+          PLAN_OUTPUT_FILE="terragrunt-plan-${{ inputs.environment }}-$(date +%s).txt"
+          echo "📄 Plan output file: $PLAN_OUTPUT_FILE"
+          
+          # Set parallelism based on environment
+          case "${{ inputs.environment }}" in
+            dev)
+              PARALLELISM=4
+              echo "🚀 Using parallelism: $PARALLELISM (dev environment)"
+              ;;
+            staging)
+              PARALLELISM=3
+              echo "🚀 Using parallelism: $PARALLELISM (staging environment)"
+              ;;
+            prod)
+              PARALLELISM=2
+              echo "🚀 Using parallelism: $PARALLELISM (prod environment)"
+              ;;
+            *)
+              PARALLELISM=2
+              echo "🚀 Using parallelism: $PARALLELISM (default)"
+              ;;
+          esac
+          
+          # Execute plan with detailed logging
+          echo "▶️ Executing: terragrunt run-all plan -no-color -parallelism $PARALLELISM"
+          echo ""
+          
+          # Run the plan and capture both stdout and stderr
+          if terragrunt run-all plan -no-color -parallelism $PARALLELISM 2>&1 | tee "$PLAN_OUTPUT_FILE"; then
+            PLAN_EXIT_CODE=0
+            echo ""
+            echo "✅ Terragrunt plan completed successfully"
+          else
+            PLAN_EXIT_CODE=$?
+            echo ""
+            echo "❌ Terragrunt plan failed with exit code: $PLAN_EXIT_CODE"
+          fi
+          
+          echo "🕐 Completed at: $(date)"
+          
+          # Store outputs for other steps
+          echo "plan_file=$PLAN_OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "exit_code=$PLAN_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # Don't exit here - let analysis step handle the exit code
+      
+      - name: "🔍 Analyze Plan Output"
+        if: always()
+        run: |
+          PLAN_FILE="${{ steps.plan.outputs.plan_file }}"
+          EXIT_CODE="${{ steps.plan.outputs.exit_code }}"
+          
+          echo "🔍 Analyzing plan output..."
+          echo "📄 Plan file: $PLAN_FILE"
+          echo "🔢 Exit code: $EXIT_CODE"
+          echo ""
+          
+          if [ ! -f "$PLAN_FILE" ]; then
+            echo "❌ Plan file not found"
+            exit 1
+          fi
+          
+          # Check for no changes
+          if grep -q "No changes\|Your infrastructure matches the configuration" "$PLAN_FILE"; then
+            echo "ℹ️ No infrastructure changes detected"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "📝 Infrastructure changes detected"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract plan summary
+          echo "📊 Plan Summary:"
+          grep -E "Plan:|No changes|Error:" "$PLAN_FILE" | tail -5 | sed 's/^/  /'
+          
+          # Check for specific error patterns
+          echo ""
+          echo "🔍 Checking for common issues..."
+          
+          # Lambda function errors
+          if grep -q "Error.*aws_lambda_function" "$PLAN_FILE"; then
+            echo "  ⚠️ Lambda function errors detected"
+            grep -A3 -B1 "Error.*aws_lambda_function" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          # State lock errors
+          if grep -q "Error acquiring the state lock\|LockException" "$PLAN_FILE"; then
+            echo "  ⚠️ State lock issues detected"
+            grep -A3 -B1 "state lock\|LockException" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          # Permission errors
+          if grep -q "UnauthorizedOperation\|AccessDenied\|Forbidden" "$PLAN_FILE"; then
+            echo "  ⚠️ Permission issues detected"
+            grep -A3 -B1 "UnauthorizedOperation\|AccessDenied\|Forbidden" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          # Provider errors
+          if grep -q "Error: Invalid provider configuration" "$PLAN_FILE"; then
+            echo "  ⚠️ Provider configuration issues detected"
+            grep -A3 -B1 "Invalid provider configuration" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          echo ""
+          echo "✅ Plan analysis complete"
+          
+          # Exit with the original plan exit code
+          exit $EXIT_CODE
+      
+      - name: "📊 Generate Plan Summary"
+        if: always()
+        run: |
+          PLAN_FILE="${{ steps.plan.outputs.plan_file }}"
+          EXIT_CODE="${{ steps.plan.outputs.exit_code }}"
+          
+          echo "## 📋 Terragrunt Plan Summary - ${{ inputs.environment }}"
+          echo ""
+          echo "**Environment:** ${{ inputs.environment }}"
+          echo "**Status:** ${{ steps.plan.outcome }}"
+          echo "**Exit Code:** $EXIT_CODE"
+          echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          
+          if [ -f "$PLAN_FILE" ]; then
+            echo "### Plan Results:"
+            echo '```'
+            # Show last 20 lines of significant output
+            grep -E "Plan:|No changes|Error:|^\+|\-|~" "$PLAN_FILE" | tail -20
+            echo '```'
+            
+            # Count changes
+            ADDITIONS=$(grep -c "will be created" "$PLAN_FILE" 2>/dev/null || echo "0")
+            CHANGES=$(grep -c "will be updated" "$PLAN_FILE" 2>/dev/null || echo "0") 
+            DELETIONS=$(grep -c "will be destroyed" "$PLAN_FILE" 2>/dev/null || echo "0")
+            
+            echo ""
+            echo "### Change Summary:"
+            echo "- **Additions:** $ADDITIONS resources"
+            echo "- **Changes:** $CHANGES resources"
+            echo "- **Deletions:** $DELETIONS resources"
+          else
+            echo "### ❌ Plan output not available"
+          fi
+      
+      - name: "💾 Upload Plan Output"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-plan-${{ inputs.environment }}
+          path: infra/live/${{ inputs.environment }}/terragrunt-plan-*.txt
+          retention-days: 14

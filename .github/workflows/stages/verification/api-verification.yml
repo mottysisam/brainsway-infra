@@ -1,0 +1,420 @@
+name: API Verification
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  api-verification:
+    name: "🌐 API Verification - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🚪 API Gateway v2 Discovery"
+        run: |
+          echo "🚪 Discovering API Gateway v2 instances for ${{ inputs.environment }}..."
+          
+          # Find HTTP APIs (API Gateway v2)
+          HTTP_APIS=$(aws apigatewayv2 get-apis \
+            --query 'Items[?Tags.Environment==`${{ inputs.environment }}`]' \
+            --output json 2>/dev/null || echo "[]")
+          
+          API_COUNT=$(echo "$HTTP_APIS" | jq length)
+          echo "📊 HTTP API Count: $API_COUNT"
+          echo "api_count=$API_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$API_COUNT" -gt 0 ]; then
+            echo "📋 HTTP APIs found:"
+            echo "$HTTP_APIS" | jq -r '.[] | "  \(.Name) (\(.ApiId)) - \(.ProtocolType) - \(.RouteSelectionExpression // "N/A")"'
+            
+            # Store API details for later steps
+            echo "$HTTP_APIS" | jq -r '.[].ApiId' > /tmp/api_ids.txt
+            echo "$HTTP_APIS" | jq -r '.[] | "\(.ApiId)|\(.Name)|\(.ApiEndpoint // "")"' > /tmp/api_details.txt
+            
+            echo "api_ids_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "📝 No HTTP APIs found for ${{ inputs.environment }}"
+            echo "api_ids_found=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "🛣️ Route and Integration Verification"
+        if: steps.api-discovery.outputs.api_ids_found == 'true'
+        run: |
+          echo "🛣️ Verifying API routes and integrations..."
+          
+          TOTAL_ROUTES=0
+          TOTAL_INTEGRATIONS=0
+          HEALTHY_INTEGRATIONS=0
+          
+          while IFS='|' read -r API_ID API_NAME API_ENDPOINT; do
+            if [ -n "$API_ID" ]; then
+              echo "📋 Checking API: $API_NAME ($API_ID)"
+              
+              # Get routes for this API
+              ROUTES=$(aws apigatewayv2 get-routes --api-id "$API_ID" --query 'Items' --output json 2>/dev/null || echo "[]")
+              ROUTE_COUNT=$(echo "$ROUTES" | jq length)
+              TOTAL_ROUTES=$((TOTAL_ROUTES + ROUTE_COUNT))
+              
+              echo "  📊 Routes: $ROUTE_COUNT"
+              
+              if [ "$ROUTE_COUNT" -gt 0 ]; then
+                echo "  📋 Route details:"
+                echo "$ROUTES" | jq -r '.[] | "    \(.RouteKey) -> \(.Target // "No target")"'
+                
+                # Check integrations for each route
+                echo "$ROUTES" | jq -r '.[] | select(.Target) | .Target' | while read TARGET; do
+                  if [[ "$TARGET" =~ integrations/(.+) ]]; then
+                    INTEGRATION_ID="${BASH_REMATCH[1]}"
+                    
+                    echo "    🔗 Checking integration: $INTEGRATION_ID"
+                    INTEGRATION=$(aws apigatewayv2 get-integration --api-id "$API_ID" --integration-id "$INTEGRATION_ID" --output json 2>/dev/null || echo "{}")
+                    
+                    if [ "$(echo "$INTEGRATION" | jq -r '.IntegrationType')" != "null" ]; then
+                      INTEGRATION_TYPE=$(echo "$INTEGRATION" | jq -r '.IntegrationType')
+                      INTEGRATION_URI=$(echo "$INTEGRATION" | jq -r '.IntegrationUri // "N/A"')
+                      
+                      echo "      Type: $INTEGRATION_TYPE"
+                      echo "      URI: $INTEGRATION_URI"
+                      
+                      TOTAL_INTEGRATIONS=$((TOTAL_INTEGRATIONS + 1))
+                      
+                      # Basic health check for Lambda integrations
+                      if [ "$INTEGRATION_TYPE" = "AWS_PROXY" ] && [[ "$INTEGRATION_URI" =~ arn:aws:lambda ]]; then
+                        FUNCTION_NAME=$(echo "$INTEGRATION_URI" | sed 's/.*function:\([^:]*\).*/\1/')
+                        echo "      🔍 Testing Lambda function: $FUNCTION_NAME"
+                        
+                        if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+                          echo "      ✅ Lambda function is accessible"
+                          HEALTHY_INTEGRATIONS=$((HEALTHY_INTEGRATIONS + 1))
+                        else
+                          echo "      ❌ Lambda function not accessible"
+                        fi
+                      else
+                        echo "      ℹ️ Non-Lambda integration (skipping health check)"
+                        HEALTHY_INTEGRATIONS=$((HEALTHY_INTEGRATIONS + 1))
+                      fi
+                    fi
+                  fi
+                done
+              fi
+              
+              echo ""
+            fi
+          done < /tmp/api_details.txt
+          
+          echo "📊 Route & Integration Summary:"
+          echo "  Total Routes: $TOTAL_ROUTES"
+          echo "  Total Integrations: $TOTAL_INTEGRATIONS"
+          echo "  Healthy Integrations: $HEALTHY_INTEGRATIONS"
+          
+          echo "total_routes=$TOTAL_ROUTES" >> $GITHUB_OUTPUT
+          echo "total_integrations=$TOTAL_INTEGRATIONS" >> $GITHUB_OUTPUT
+          echo "healthy_integrations=$HEALTHY_INTEGRATIONS" >> $GITHUB_OUTPUT
+      
+      - name: "🔐 API Security Configuration"
+        if: steps.api-discovery.outputs.api_ids_found == 'true'
+        run: |
+          echo "🔐 Verifying API security configuration..."
+          
+          CORS_ENABLED=0
+          AUTHORIZERS_COUNT=0
+          THROTTLING_ENABLED=0
+          
+          while IFS='|' read -r API_ID API_NAME API_ENDPOINT; do
+            if [ -n "$API_ID" ]; then
+              echo "🔐 Security check for: $API_NAME ($API_ID)"
+              
+              # Check CORS configuration
+              CORS_CONFIG=$(aws apigatewayv2 get-api --api-id "$API_ID" --query 'CorsConfiguration' --output json 2>/dev/null || echo "null")
+              
+              if [ "$CORS_CONFIG" != "null" ]; then
+                echo "  ✅ CORS configuration found"
+                CORS_ENABLED=$((CORS_ENABLED + 1))
+                
+                ALLOW_ORIGINS=$(echo "$CORS_CONFIG" | jq -r '.AllowOrigins[]?' 2>/dev/null | head -3)
+                if [ -n "$ALLOW_ORIGINS" ]; then
+                  echo "    Allowed Origins:"
+                  echo "$ALLOW_ORIGINS" | sed 's/^/      /'
+                fi
+              else
+                echo "  ⚠️ No CORS configuration"
+              fi
+              
+              # Check authorizers
+              AUTHORIZERS=$(aws apigatewayv2 get-authorizers --api-id "$API_ID" --query 'Items' --output json 2>/dev/null || echo "[]")
+              AUTH_COUNT=$(echo "$AUTHORIZERS" | jq length)
+              AUTHORIZERS_COUNT=$((AUTHORIZERS_COUNT + AUTH_COUNT))
+              
+              if [ "$AUTH_COUNT" -gt 0 ]; then
+                echo "  🔐 Authorizers: $AUTH_COUNT"
+                echo "$AUTHORIZERS" | jq -r '.[] | "    \(.Name) (\(.AuthorizerType))"'
+              else
+                echo "  ⚠️ No authorizers configured"
+              fi
+              
+              # Check if throttling is configured (requires stage check)
+              STAGES=$(aws apigatewayv2 get-stages --api-id "$API_ID" --query 'Items' --output json 2>/dev/null || echo "[]")
+              
+              echo "$STAGES" | jq -r '.[] | select(.ThrottleSettings) | .StageName' | while read STAGE_NAME; do
+                if [ -n "$STAGE_NAME" ]; then
+                  echo "  🚦 Throttling enabled on stage: $STAGE_NAME"
+                  THROTTLING_ENABLED=$((THROTTLING_ENABLED + 1))
+                fi
+              done
+              
+              echo ""
+            fi
+          done < /tmp/api_details.txt
+          
+          echo "📊 Security Summary:"
+          echo "  APIs with CORS: $CORS_ENABLED"
+          echo "  Total Authorizers: $AUTHORIZERS_COUNT"
+          echo "  Stages with Throttling: $THROTTLING_ENABLED"
+          
+          echo "cors_enabled=$CORS_ENABLED" >> $GITHUB_OUTPUT
+          echo "authorizers_count=$AUTHORIZERS_COUNT" >> $GITHUB_OUTPUT
+          echo "throttling_enabled=$THROTTLING_ENABLED" >> $GITHUB_OUTPUT
+      
+      - name: "🌐 Domain and Certificate Verification"
+        if: steps.api-discovery.outputs.api_ids_found == 'true'
+        run: |
+          echo "🌐 Verifying custom domains and certificates..."
+          
+          CUSTOM_DOMAINS=0
+          VALID_CERTIFICATES=0
+          
+          # Check domain names for this environment
+          DOMAIN_NAMES=$(aws apigatewayv2 get-domain-names \
+            --query 'Items[?Tags.Environment==`${{ inputs.environment }}`]' \
+            --output json 2>/dev/null || echo "[]")
+          
+          DOMAIN_COUNT=$(echo "$DOMAIN_NAMES" | jq length)
+          CUSTOM_DOMAINS=$DOMAIN_COUNT
+          
+          if [ "$DOMAIN_COUNT" -gt 0 ]; then
+            echo "📋 Custom domains found: $DOMAIN_COUNT"
+            
+            echo "$DOMAIN_NAMES" | jq -r '.[] | "\(.DomainName)|\(.DomainNameConfigurations[0].CertificateArn // "")"' | while IFS='|' read DOMAIN_NAME CERT_ARN; do
+              echo "  🌐 Domain: $DOMAIN_NAME"
+              
+              if [ -n "$CERT_ARN" ]; then
+                echo "    📜 Certificate: $(basename "$CERT_ARN")"
+                
+                # Check certificate status
+                CERT_STATUS=$(aws acm describe-certificate --certificate-arn "$CERT_ARN" --query 'Certificate.Status' --output text 2>/dev/null || echo "UNKNOWN")
+                echo "    🔐 Certificate Status: $CERT_STATUS"
+                
+                if [ "$CERT_STATUS" = "ISSUED" ]; then
+                  VALID_CERTIFICATES=$((VALID_CERTIFICATES + 1))
+                  echo "    ✅ Certificate is valid"
+                else
+                  echo "    ⚠️ Certificate issue detected"
+                fi
+              else
+                echo "    ⚠️ No certificate configured"
+              fi
+            done
+          else
+            echo "📝 No custom domains found for ${{ inputs.environment }}"
+          fi
+          
+          echo ""
+          echo "📊 Domain Summary:"
+          echo "  Custom Domains: $CUSTOM_DOMAINS"
+          echo "  Valid Certificates: $VALID_CERTIFICATES"
+          
+          echo "custom_domains=$CUSTOM_DOMAINS" >> $GITHUB_OUTPUT
+          echo "valid_certificates=$VALID_CERTIFICATES" >> $GITHUB_OUTPUT
+      
+      - name: "🧪 API Endpoint Testing"
+        if: steps.api-discovery.outputs.api_ids_found == 'true'
+        run: |
+          echo "🧪 Testing API endpoint connectivity..."
+          
+          REACHABLE_ENDPOINTS=0
+          UNREACHABLE_ENDPOINTS=0
+          
+          while IFS='|' read -r API_ID API_NAME API_ENDPOINT; do
+            if [ -n "$API_ENDPOINT" ] && [ "$API_ENDPOINT" != "" ]; then
+              echo "🧪 Testing endpoint: $API_ENDPOINT"
+              
+              # Basic connectivity test (GET request with timeout)
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_ENDPOINT" 2>/dev/null || echo "000")
+              
+              echo "  📡 HTTP Status: $HTTP_STATUS"
+              
+              case "$HTTP_STATUS" in
+                2*|4*)
+                  echo "  ✅ Endpoint is reachable"
+                  REACHABLE_ENDPOINTS=$((REACHABLE_ENDPOINTS + 1))
+                  ;;
+                000)
+                  echo "  ❌ Endpoint is unreachable (timeout/connection error)"
+                  UNREACHABLE_ENDPOINTS=$((UNREACHABLE_ENDPOINTS + 1))
+                  ;;
+                5*)
+                  echo "  ⚠️ Endpoint reachable but server error"
+                  REACHABLE_ENDPOINTS=$((REACHABLE_ENDPOINTS + 1))
+                  ;;
+                *)
+                  echo "  ❓ Unexpected response: $HTTP_STATUS"
+                  UNREACHABLE_ENDPOINTS=$((UNREACHABLE_ENDPOINTS + 1))
+                  ;;
+              esac
+            else
+              echo "🔍 Checking API: $API_NAME (no direct endpoint)"
+              
+              # Try to construct default endpoint URL
+              DEFAULT_ENDPOINT="https://$API_ID.execute-api.us-east-2.amazonaws.com"
+              echo "  🧪 Testing default endpoint: $DEFAULT_ENDPOINT"
+              
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$DEFAULT_ENDPOINT" 2>/dev/null || echo "000")
+              echo "  📡 HTTP Status: $HTTP_STATUS"
+              
+              case "$HTTP_STATUS" in
+                2*|4*)
+                  echo "  ✅ Default endpoint is reachable"
+                  REACHABLE_ENDPOINTS=$((REACHABLE_ENDPOINTS + 1))
+                  ;;
+                *)
+                  echo "  ❌ Default endpoint is unreachable"
+                  UNREACHABLE_ENDPOINTS=$((UNREACHABLE_ENDPOINTS + 1))
+                  ;;
+              esac
+            fi
+            
+            echo ""
+          done < /tmp/api_details.txt
+          
+          echo "📊 Connectivity Summary:"
+          echo "  Reachable Endpoints: $REACHABLE_ENDPOINTS"
+          echo "  Unreachable Endpoints: $UNREACHABLE_ENDPOINTS"
+          
+          echo "reachable_endpoints=$REACHABLE_ENDPOINTS" >> $GITHUB_OUTPUT
+          echo "unreachable_endpoints=$UNREACHABLE_ENDPOINTS" >> $GITHUB_OUTPUT
+      
+      - name: "📊 API Health Assessment"
+        run: |
+          echo "📊 Performing API health assessment..."
+          
+          API_COUNT="${{ steps.api-discovery.outputs.api_count }}"
+          TOTAL_ROUTES="${{ steps.route-verification.outputs.total_routes }}"
+          HEALTHY_INTEGRATIONS="${{ steps.route-verification.outputs.healthy_integrations }}"
+          TOTAL_INTEGRATIONS="${{ steps.route-verification.outputs.total_integrations }}"
+          REACHABLE_ENDPOINTS="${{ steps.endpoint-testing.outputs.reachable_endpoints }}"
+          UNREACHABLE_ENDPOINTS="${{ steps.endpoint-testing.outputs.unreachable_endpoints }}"
+          
+          echo "🏥 API Health Summary:"
+          echo "  APIs: $API_COUNT"
+          echo "  Routes: $TOTAL_ROUTES"
+          echo "  Integrations: $TOTAL_INTEGRATIONS (Healthy: $HEALTHY_INTEGRATIONS)"
+          echo "  Endpoints: Reachable: $REACHABLE_ENDPOINTS, Unreachable: $UNREACHABLE_ENDPOINTS"
+          
+          # Determine overall health
+          HEALTH_SCORE=100
+          HEALTH_ISSUES=""
+          
+          if [ "$API_COUNT" -eq 0 ]; then
+            HEALTH_SCORE=$((HEALTH_SCORE - 50))
+            HEALTH_ISSUES="$HEALTH_ISSUES no-apis"
+          else
+            # Check integration health
+            if [ "$TOTAL_INTEGRATIONS" -gt 0 ]; then
+              INTEGRATION_HEALTH_RATIO=$((HEALTHY_INTEGRATIONS * 100 / TOTAL_INTEGRATIONS))
+              if [ "$INTEGRATION_HEALTH_RATIO" -lt 80 ]; then
+                HEALTH_SCORE=$((HEALTH_SCORE - 25))
+                HEALTH_ISSUES="$HEALTH_ISSUES unhealthy-integrations"
+              fi
+            fi
+            
+            # Check endpoint connectivity
+            if [ "$UNREACHABLE_ENDPOINTS" -gt 0 ]; then
+              HEALTH_SCORE=$((HEALTH_SCORE - 20))
+              HEALTH_ISSUES="$HEALTH_ISSUES unreachable-endpoints"
+            fi
+            
+            # Check if APIs have routes
+            if [ "$TOTAL_ROUTES" -eq 0 ]; then
+              HEALTH_SCORE=$((HEALTH_SCORE - 15))
+              HEALTH_ISSUES="$HEALTH_ISSUES no-routes"
+            fi
+          fi
+          
+          if [ $HEALTH_SCORE -ge 90 ]; then
+            echo "✅ API health: EXCELLENT ($HEALTH_SCORE/100)"
+            echo "api_health=excellent" >> $GITHUB_OUTPUT
+          elif [ $HEALTH_SCORE -ge 70 ]; then
+            echo "✅ API health: GOOD ($HEALTH_SCORE/100)"
+            echo "api_health=good" >> $GITHUB_OUTPUT
+          elif [ $HEALTH_SCORE -ge 50 ]; then
+            echo "⚠️ API health: FAIR ($HEALTH_SCORE/100)"
+            echo "api_health=fair" >> $GITHUB_OUTPUT
+          else
+            echo "❌ API health: POOR ($HEALTH_SCORE/100)"
+            echo "api_health=poor" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -n "$HEALTH_ISSUES" ]; then
+            echo "🔍 Issues detected: $HEALTH_ISSUES"
+            echo "health_issues=$HEALTH_ISSUES" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "health_score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
+      
+      - name: "📊 Generate API Report"
+        if: always()
+        run: |
+          echo "📊 Generating API verification report..."
+          
+          cat > api-report-${{ inputs.environment }}.json << EOF
+          {
+            "environment": "${{ inputs.environment }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "apis": {
+              "total_apis": ${{ steps.api-discovery.outputs.api_count || 0 }},
+              "total_routes": ${{ steps.route-verification.outputs.total_routes || 0 }},
+              "total_integrations": ${{ steps.route-verification.outputs.total_integrations || 0 }},
+              "healthy_integrations": ${{ steps.route-verification.outputs.healthy_integrations || 0 }}
+            },
+            "security": {
+              "cors_enabled": ${{ steps.security-verification.outputs.cors_enabled || 0 }},
+              "authorizers_count": ${{ steps.security-verification.outputs.authorizers_count || 0 }},
+              "throttling_enabled": ${{ steps.security-verification.outputs.throttling_enabled || 0 }}
+            },
+            "domains": {
+              "custom_domains": ${{ steps.domain-verification.outputs.custom_domains || 0 }},
+              "valid_certificates": ${{ steps.domain-verification.outputs.valid_certificates || 0 }}
+            },
+            "connectivity": {
+              "reachable_endpoints": ${{ steps.endpoint-testing.outputs.reachable_endpoints || 0 }},
+              "unreachable_endpoints": ${{ steps.endpoint-testing.outputs.unreachable_endpoints || 0 }}
+            },
+            "health": {
+              "score": ${{ steps.api-health.outputs.health_score || 0 }},
+              "status": "${{ steps.api-health.outputs.api_health || 'unknown' }}",
+              "issues": "${{ steps.api-health.outputs.health_issues || 'none' }}"
+            }
+          }
+          EOF
+          
+          echo "✅ API report generated: api-report-${{ inputs.environment }}.json"
+      
+      - name: "💾 Upload API Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-report-${{ inputs.environment }}
+          path: api-report-${{ inputs.environment }}.json
+          retention-days: 14

@@ -1,4 +1,4 @@
-name: Verify Infrastructure Resources
+name: Infrastructure Verification
 
 on:
   workflow_call:
@@ -12,126 +12,91 @@ on:
         description: 'Whether this is after a plan or deploy'
 
 jobs:
-  verify-resources:
-    name: "🔍 Verify Resources - ${{ inputs.environment }}"
+  # Stage 1: Network verification
+  network-verification:
+    name: "🌐 Network"
+    uses: ./.github/workflows/stages/verification/network-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 2: Compute verification
+  compute-verification:
+    name: "💻 Compute"
+    uses: ./.github/workflows/stages/verification/compute-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 3: API verification
+  api-verification:
+    name: "🌐 API"
+    uses: ./.github/workflows/stages/verification/api-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Summary job to aggregate results
+  verification-summary:
+    name: "📊 Verification Summary"
+    needs: [network-verification, compute-verification, api-verification]
+    if: always()
     runs-on: ubuntu-latest
+    outputs:
+      verification_status: ${{ steps.summary.outputs.verification_status }}
     
     steps:
-      - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
-      
-      - name: "🔑 Configure AWS Credentials"
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
-          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
-          aws-region: us-east-2
-      
-      - name: "🔍 Verify Network Resources"
-        id: network
-        continue-on-error: true
-        run: |
-          echo "🔍 Verifying network resources..."
-          
-          # Check VPCs
-          echo "  VPCs:"
-          aws ec2 describe-vpcs --query 'Vpcs[?Tags[?Key==`Environment` && Value==`${{ inputs.environment }}`]].{ID:VpcId,CIDR:CidrBlock}' --output table
-          
-          # Check Subnets
-          echo "  Subnets:"
-          aws ec2 describe-subnets --query 'Subnets[?Tags[?Key==`Environment` && Value==`${{ inputs.environment }}`]].{ID:SubnetId,AZ:AvailabilityZone,CIDR:CidrBlock}' --output table
-          
-          # Check Security Groups
-          echo "  Security Groups:"
-          aws ec2 describe-security-groups --query 'SecurityGroups[?Tags[?Key==`Environment` && Value==`${{ inputs.environment }}`]].{ID:GroupId,Name:GroupName}' --output table
-      
-      - name: "🔍 Verify Compute Resources"
-        id: compute
-        continue-on-error: true
-        run: |
-          echo "🔍 Verifying compute resources..."
-          
-          # Check Lambda Functions
-          echo "  Lambda Functions:"
-          FUNCTIONS=$(aws lambda list-functions --query 'Functions[?Environment.Variables.ENVIRONMENT==`${{ inputs.environment }}`].FunctionName' --output text)
-          
-          if [ -n "$FUNCTIONS" ]; then
-            for FUNC in $FUNCTIONS; do
-              echo "    ✅ $FUNC"
-            done
-          else
-            echo "    ⚠️ No Lambda functions found for ${{ inputs.environment }}"
-          fi
-          
-          # Count resources
-          LAMBDA_COUNT=$(echo "$FUNCTIONS" | wc -w)
-          echo "lambda_count=$LAMBDA_COUNT" >> $GITHUB_OUTPUT
-      
-      - name: "🔍 Verify Storage Resources"
-        id: storage
-        continue-on-error: true
-        run: |
-          echo "🔍 Verifying storage resources..."
-          
-          # Check S3 Buckets
-          echo "  S3 Buckets:"
-          aws s3 ls | grep -E "${{ inputs.environment }}|bw-" || echo "    ℹ️ No environment-specific buckets found"
-          
-          # Check DynamoDB Tables
-          echo "  DynamoDB Tables:"
-          aws dynamodb list-tables --query 'TableNames[?contains(@, `${{ inputs.environment }}`)]' --output text || echo "    ℹ️ No DynamoDB tables found"
-          
-          # Check RDS Instances
-          echo "  RDS Instances:"
-          aws rds describe-db-instances --query 'DBInstances[?TagList[?Key==`Environment` && Value==`${{ inputs.environment }}`]].DBInstanceIdentifier' --output text || echo "    ℹ️ No RDS instances found"
-      
-      - name: "🔍 Verify API Resources"
-        id: api
-        continue-on-error: true
-        run: |
-          echo "🔍 Verifying API resources..."
-          
-          # Check API Gateway v2
-          echo "  API Gateway v2:"
-          aws apigatewayv2 get-apis --query 'Items[?Tags.Environment==`${{ inputs.environment }}`].{Name:Name,ID:ApiId,Endpoint:ApiEndpoint}' --output table || echo "    ℹ️ No API Gateways found"
-          
-          # Check Route53 Records
-          echo "  DNS Records:"
-          # This would need the hosted zone ID
-          echo "    ℹ️ DNS verification requires hosted zone ID"
-      
-      - name: "🔍 Verify IAM Resources"
-        id: iam
-        continue-on-error: true
-        run: |
-          echo "🔍 Verifying IAM resources..."
-          
-          # Check IAM Roles
-          echo "  IAM Roles:"
-          aws iam list-roles --query 'Roles[?contains(RoleName, `lambda`) || contains(RoleName, `ecs`)].RoleName' --output text | head -10
-      
       - name: "📊 Generate Verification Summary"
-        if: always()
+        id: summary
         run: |
           echo "## 📊 Infrastructure Verification Summary - ${{ inputs.environment }}"
           echo ""
           echo "**Environment:** ${{ inputs.environment }}"
-          echo "**Verification Type:** ${{ inputs.action == 'deploy' ? 'Post-Deployment' : 'Current State' }}"
+          echo "**Verification Type:** ${{ inputs.action == 'deploy' && 'Post-Deployment' || 'Current State' }}"
           echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo ""
-          echo "### Resource Summary:"
-          echo "- **Lambda Functions:** ${{ steps.compute.outputs.lambda_count || 0 }}"
-          echo "- **Network:** ${{ steps.network.outcome }}"
-          echo "- **Compute:** ${{ steps.compute.outcome }}"
-          echo "- **Storage:** ${{ steps.storage.outcome }}"
-          echo "- **API:** ${{ steps.api.outcome }}"
-          echo "- **IAM:** ${{ steps.iam.outcome }}"
+          echo "### Verification Results:"
+          echo "- **Network Verification:** ${{ needs.network-verification.result }}"
+          echo "- **Compute Verification:** ${{ needs.compute-verification.result }}"
+          echo "- **API Verification:** ${{ needs.api-verification.result }}"
           echo ""
           
-          if [ "${{ inputs.action }}" = "deploy" ]; then
-            echo "### Post-Deployment Status:"
-            echo "Resources have been deployed. Allow 30-60 seconds for AWS to fully provision all resources."
+          # Determine overall status
+          SUCCESS_COUNT=0
+          TOTAL_COUNT=3
+          
+          [ "${{ needs.network-verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          [ "${{ needs.compute-verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          [ "${{ needs.api-verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          
+          SUCCESS_PERCENTAGE=$((SUCCESS_COUNT * 100 / TOTAL_COUNT))
+          
+          if [ $SUCCESS_COUNT -eq $TOTAL_COUNT ]; then
+            echo "### ✅ Overall Status: EXCELLENT"
+            echo "All verification checks passed successfully."
+            echo "verification_status=excellent" >> $GITHUB_OUTPUT
+          elif [ $SUCCESS_PERCENTAGE -ge 67 ]; then
+            echo "### ✅ Overall Status: GOOD"
+            echo "Most verification checks passed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=good" >> $GITHUB_OUTPUT
+          elif [ $SUCCESS_PERCENTAGE -ge 33 ]; then
+            echo "### ⚠️ Overall Status: FAIR"
+            echo "Some verification checks passed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=fair" >> $GITHUB_OUTPUT
           else
-            echo "### Current Infrastructure State:"
-            echo "This represents the current state of infrastructure in ${{ inputs.environment }}."
+            echo "### ❌ Overall Status: POOR"
+            echo "Most verification checks failed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=poor" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "${{ inputs.action }}" = "deploy" ]; then
+            echo ""
+            echo "### Post-Deployment Notes:"
+            echo "Resources have been deployed. Allow 30-60 seconds for AWS to fully provision all resources."
+            echo "Monitor CloudWatch logs and metrics for operational status."
+          else
+            echo ""
+            echo "### Current Infrastructure Assessment:"
+            echo "This represents the current health state of infrastructure in ${{ inputs.environment }}."
+            echo "Use this information to identify potential issues or improvements."
           fi

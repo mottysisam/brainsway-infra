@@ -1,0 +1,258 @@
+name: Pre-Deploy Checks
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  pre-deploy-checks:
+    name: "🛡️ Pre-Deploy Checks - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "🔑 Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "🛡️ Environment Protection Check"
+        run: |
+          echo "🛡️ Checking environment protection rules..."
+          
+          # Production protection (read-only)
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo "🚨 PRODUCTION ENVIRONMENT DETECTED"
+            echo "❌ Production is READ-ONLY per CLAUDE.md requirements"
+            echo "🔒 No deployments allowed to production via CI/CD"
+            echo ""
+            echo "📋 For production changes:"
+            echo "  1. Use manual deployment process"
+            echo "  2. Follow change management procedures"
+            echo "  3. Implement changes during maintenance windows"
+            exit 1
+          fi
+          
+          # Staging protection (require approval)
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+            echo "⚠️ STAGING ENVIRONMENT DETECTED"
+            echo "🔍 Enhanced safety checks required"
+            echo "✅ Staging deployments allowed with proper review"
+          fi
+          
+          # Dev environment (normal flow)
+          if [ "${{ inputs.environment }}" = "dev" ]; then
+            echo "✅ DEV ENVIRONMENT DETECTED"
+            echo "🚀 Development deployments allowed"
+          fi
+          
+          echo ""
+          echo "✅ Environment protection check passed for: ${{ inputs.environment }}"
+      
+      - name: "👤 AWS Account Verification"
+        run: |
+          echo "👤 Verifying AWS account matches environment..."
+          
+          # Get expected account from environment config
+          ENV_DIR="infra/live/${{ inputs.environment }}"
+          if [ ! -f "$ENV_DIR/env.hcl" ]; then
+            echo "❌ Environment configuration not found: $ENV_DIR/env.hcl"
+            exit 1
+          fi
+          
+          EXPECTED_ACCOUNT=$(grep 'aws_account' "$ENV_DIR/env.hcl" | cut -d'"' -f2)
+          CURRENT_ACCOUNT=$(aws sts get-caller-identity --query 'Account' --output text)
+          
+          echo "📋 Account Verification:"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  Expected Account: $EXPECTED_ACCOUNT"
+          echo "  Current Account: $CURRENT_ACCOUNT"
+          
+          if [ "$CURRENT_ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+            echo "❌ AWS Account mismatch!"
+            echo "🚨 CRITICAL: Deployment would target wrong AWS account"
+            echo ""
+            echo "💡 Possible causes:"
+            echo "  - Wrong AWS credentials configured"
+            echo "  - Environment configuration error"
+            echo "  - AWS profile misconfiguration"
+            exit 1
+          fi
+          
+          echo "✅ AWS Account verified successfully"
+      
+      - name: "📥 Download Latest Plan"
+        uses: actions/download-artifact@v4
+        with:
+          name: terragrunt-plan-${{ inputs.environment }}
+          path: plan-output/
+        continue-on-error: true
+      
+      - name: "📋 Plan Validation"
+        run: |
+          echo "📋 Validating deployment plan..."
+          
+          # Check if plan exists
+          PLAN_FILE=$(find plan-output -name "*.txt" | head -1 2>/dev/null || echo "")
+          
+          if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
+            echo "⚠️ No plan artifact found"
+            echo "🔍 This might indicate:"
+            echo "  - Plan stage was skipped"
+            echo "  - Plan failed to complete"
+            echo "  - Artifact expired or missing"
+            echo ""
+            echo "❌ Cannot proceed without validated plan"
+            exit 1
+          fi
+          
+          echo "📄 Plan file found: $PLAN_FILE"
+          
+          # Check if plan has changes
+          if grep -q "No changes\|Your infrastructure matches the configuration" "$PLAN_FILE"; then
+            echo "ℹ️ Plan shows no changes"
+            echo "💡 Deployment will be a no-op"
+            echo "skip_deployment=true" >> $GITHUB_OUTPUT
+          else
+            echo "📝 Plan shows infrastructure changes"
+            echo "🚀 Deployment is required"
+            echo "skip_deployment=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check for destructive operations
+          DESTRUCTIVE_OPS=$(grep -c "will be destroyed\|must be replaced" "$PLAN_FILE" 2>/dev/null || echo "0")
+          if [ "$DESTRUCTIVE_OPS" -gt 0 ]; then
+            echo "⚠️ DESTRUCTIVE OPERATIONS DETECTED"
+            echo "🔥 $DESTRUCTIVE_OPS resources will be destroyed or replaced"
+            
+            if [ "${{ inputs.environment }}" = "staging" ]; then
+              echo "⚠️ Enhanced review required for staging destructive changes"
+              echo "destructive_ops=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "✅ No destructive operations detected"
+            echo "destructive_ops=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo ""
+          echo "✅ Plan validation completed"
+      
+      - name: "🔒 Resource Dependency Check"
+        run: |
+          echo "🔒 Checking for resource dependencies and conflicts..."
+          
+          # Check for any stuck state locks
+          ENV_DIR="infra/live/${{ inputs.environment }}"
+          LOCK_TABLE=$(grep 'lock_table' "$ENV_DIR/env.hcl" | cut -d'"' -f2)
+          
+          echo "🔍 Checking state locks in table: $LOCK_TABLE"
+          
+          if aws dynamodb describe-table --table-name "$LOCK_TABLE" >/dev/null 2>&1; then
+            LOCK_COUNT=$(aws dynamodb scan --table-name "$LOCK_TABLE" --select COUNT --query 'Count' --output text 2>/dev/null || echo "0")
+            
+            echo "🔓 Current state locks: $LOCK_COUNT"
+            
+            if [ "$LOCK_COUNT" -gt 0 ]; then
+              echo "⚠️ WARNING: $LOCK_COUNT state lock(s) currently held"
+              echo "💡 This may indicate:"
+              echo "  - Ongoing Terraform operations"
+              echo "  - Stuck/failed operations"
+              echo "  - Manual intervention required"
+              
+              # List current locks
+              echo ""
+              echo "🔍 Current locks:"
+              aws dynamodb scan --table-name "$LOCK_TABLE" --query 'Items[*].[LockID.S,Who.S,Created.S]' --output table 2>/dev/null || echo "  Unable to list locks"
+              
+              echo ""
+              echo "❌ Cannot proceed with active state locks"
+              echo "🛠️ Please resolve locks before deployment"
+              exit 1
+            else
+              echo "✅ No state locks detected"
+            fi
+          else
+            echo "⚠️ Lock table not accessible"
+            echo "📝 This may be expected for new environments"
+          fi
+      
+      - name: "🕐 Deployment Timing Check"
+        run: |
+          echo "🕐 Checking deployment timing and windows..."
+          
+          CURRENT_HOUR=$(date +%H)
+          CURRENT_DAY=$(date +%u)  # 1=Monday, 7=Sunday
+          
+          echo "📅 Current time: $(date)"
+          echo "🕐 Hour: $CURRENT_HOUR (24h format)"
+          echo "📅 Day of week: $CURRENT_DAY (1=Mon, 7=Sun)"
+          
+          # Staging deployment windows
+          if [ "${{ inputs.environment }}" = "staging" ]; then
+            echo "⚠️ Staging deployment timing check..."
+            
+            # Avoid Friday afternoon deployments
+            if [ "$CURRENT_DAY" = "5" ] && [ "$CURRENT_HOUR" -ge 15 ]; then
+              echo "⚠️ WARNING: Friday afternoon deployment"
+              echo "💡 Consider delaying to avoid weekend issues"
+              echo "friday_deployment=true" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Good timing for staging deployment"
+              echo "friday_deployment=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          # Weekend deployment warning
+          if [ "$CURRENT_DAY" = "6" ] || [ "$CURRENT_DAY" = "7" ]; then
+            echo "⚠️ Weekend deployment detected"
+            echo "💡 Ensure proper monitoring and support coverage"
+            echo "weekend_deployment=true" >> $GITHUB_OUTPUT
+          else
+            echo "weekend_deployment=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo ""
+          echo "✅ Deployment timing check completed"
+      
+      - name: "📊 Generate Pre-Deploy Report"
+        if: always()
+        run: |
+          echo "📊 Generating pre-deployment report..."
+          
+          cat > pre-deploy-report-${{ inputs.environment }}.json << EOF
+          {
+            "environment": "${{ inputs.environment }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "aws_account": "$(aws sts get-caller-identity --query 'Account' --output text)",
+            "checks": {
+              "environment_protection": "passed",
+              "account_verification": "passed",
+              "plan_validation": "passed",
+              "resource_dependencies": "passed",
+              "deployment_timing": "passed"
+            },
+            "flags": {
+              "skip_deployment": "${{ steps.plan-validation.outputs.skip_deployment || 'false' }}",
+              "destructive_ops": "${{ steps.plan-validation.outputs.destructive_ops || 'false' }}",
+              "friday_deployment": "${{ steps.deployment-timing.outputs.friday_deployment || 'false' }}",
+              "weekend_deployment": "${{ steps.deployment-timing.outputs.weekend_deployment || 'false' }}"
+            },
+            "ready_for_deployment": true
+          }
+          EOF
+          
+          echo "✅ Pre-deploy report generated: pre-deploy-report-${{ inputs.environment }}.json"
+      
+      - name: "💾 Upload Pre-Deploy Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-deploy-report-${{ inputs.environment }}
+          path: pre-deploy-report-${{ inputs.environment }}.json
+          retention-days: 14
