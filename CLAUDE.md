@@ -168,4 +168,9 @@ terragrunt plan
 
 IMPORTANT: End each message with MESSAGE-ENDED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-ENDED followed by your response, use this bash function: echo "MESSAGE-ENDED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-ENDED"
 
+## State Lock Management (Completed)
+- Cleared stuck RDS terraform state lock in staging environment
+- Cleared stuck API Gateway v2 terraform state lock in staging environment  
+- Implemented Digger configuration optimizations for flexible dev/staging lock policies
+
 **This file is the truth.** If reality drifts (e.g., prod applies creep in), update this doc **and** the CI to enforce the rule.
