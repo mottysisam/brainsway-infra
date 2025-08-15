@@ -96,7 +96,7 @@ resource "aws_apigatewayv2_route" "internal_router_get" {
 # CloudWatch log group for access logs
 resource "aws_cloudwatch_log_group" "api_access" {
   count             = var.enable_logging ? 1 : 0
-  name              = "/apigw/${var.api_name}/${var.stage_name}/access"
+  name              = "/apigw/${var.api_name}/${replace(var.stage_name, "$", "")}/access"
   retention_in_days = var.log_retention_days
   
   tags = merge(var.tags, {
