@@ -30,12 +30,18 @@ resource "aws_lambda_function" "this" {
   tags          = try(each.value.tags, {})
   
   # Deployment source handling for import-first posture
-  # Provide explicit source if specified, otherwise use minimal placeholder
-  filename         = try(each.value.filename, local_file.placeholder_zip.filename)
-  s3_bucket        = try(each.value.s3_bucket, null)
-  s3_key           = try(each.value.s3_key, null)
-  s3_object_version = try(each.value.s3_object_version, null)
-  image_uri        = try(each.value.image_uri, null)
+  # Only specify the deployment method actually being used
+  filename = can(each.value.filename) ? each.value.filename : (
+    can(each.value.s3_bucket) ? null : (
+      can(each.value.image_uri) ? null : local_file.placeholder_zip.filename
+    )
+  )
+  
+  s3_bucket = can(each.value.s3_bucket) ? each.value.s3_bucket : null
+  s3_key    = can(each.value.s3_bucket) ? try(each.value.s3_key, null) : null
+  s3_object_version = can(each.value.s3_bucket) ? try(each.value.s3_object_version, null) : null
+  
+  image_uri = can(each.value.image_uri) ? each.value.image_uri : null
   
   # Import posture: code package unmanaged here
   lifecycle { ignore_changes = all }
