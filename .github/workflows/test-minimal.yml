@@ -8,5 +8,5 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Basic Execution
-        run: echo "✅ Basic GitHub Actions execution works"
+      - name: test_basic_execution
+        run: echo "Basic GitHub Actions execution works"

@@ -13,25 +13,25 @@ on:
         type: string
 
 jobs:
-  simple-test:
-    name: "🧪 Test Modular Pipeline"
+  simple_test:
+    name: test_modular_pipeline
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: checkout_code
         uses: actions/checkout@v4
       
-      - name: "🏗️ Test Infrastructure Pipeline"
+      - name: test_infrastructure_pipeline
         run: |
-          echo "🎯 SUCCESS: Modular workflow is working!"
+          echo "SUCCESS: Modular workflow is working!"
           echo "Environment: ${{ inputs.environment }}"
           echo "Action: ${{ inputs.action }}"
           echo "This confirms our modular architecture can be called correctly"
           echo ""
           echo "Next steps:"
-          echo "1. ✅ Main orchestrator working"
-          echo "2. ✅ workflow_call syntax working"
-          echo "3. 🔄 Ready to implement granular stages"
+          echo "1. Main orchestrator working"
+          echo "2. workflow_call syntax working"
+          echo "3. Ready to implement granular stages"
           echo ""
           echo "Previous issue: Pipeline was running placeholder instead of modular stages"
           echo "Current fix: Direct workflow_call orchestration confirmed working"
