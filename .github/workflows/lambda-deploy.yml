@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed_functions: ${{ steps.changes.outputs.changed_functions }}
-      has-changes: ${{ steps.changes.outputs.has-changes }}
+      has_changes: ${{ steps.changes.outputs.has_changes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,23 +75,23 @@ jobs:
           changed_functions=$(echo $changed_functions | xargs)
           
           if [[ -n "$changed_functions" ]]; then
-            echo "has-changes=true" >> $GITHUB_OUTPUT
-            echo "changed-functions=$changed_functions" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "changed_functions=$changed_functions" >> $GITHUB_OUTPUT
             echo "Changed functions: $changed_functions"
           else
-            echo "has-changes=false" >> $GITHUB_OUTPUT
-            echo "changed-functions=" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "changed_functions=" >> $GITHUB_OUTPUT
             echo "No Lambda function changes detected"
           fi
 
   quality-gates:
     name: Quality Gates
     runs-on: ubuntu-latest
-    needs: detect-changes
-    if: needs.detect-changes.outputs.has-changes == 'true'
+    needs: detect_changes
+    if: needs.detect_changes.outputs.has_changes == 'true'
     strategy:
       matrix:
-        function: ${{ fromJson(format('[{0}]', join(split(needs.detect-changes.outputs.changed-functions, ' '), '","'))) }}
+        function: ${{ fromJson(format('[{0}]', join(split(needs.detect_changes.outputs.changed_functions, ' '), '","'))) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -158,11 +158,11 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
-    needs: [detect-changes, quality-gates]
-    if: needs.detect-changes.outputs.has-changes == 'true'
+    needs: [detect_changes, quality-gates]
+    if: needs.detect_changes.outputs.has_changes == 'true'
     strategy:
       matrix:
-        function: ${{ fromJson(format('[{0}]', join(split(needs.detect-changes.outputs.changed-functions, ' '), '","'))) }}
+        function: ${{ fromJson(format('[{0}]', join(split(needs.detect_changes.outputs.changed_functions, ' '), '","'))) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -214,15 +214,15 @@ jobs:
   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-and-test]
+    needs: [detect_changes, build-and-test]
     if: |
-      needs.detect-changes.outputs.has-changes == 'true' &&
+      needs.detect_changes.outputs.has_changes == 'true' &&
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push'
     environment: development
     strategy:
       matrix:
-        function: ${{ fromJson(format('[{0}]', join(split(needs.detect-changes.outputs.changed-functions, ' '), '","'))) }}
+        function: ${{ fromJson(format('[{0}]', join(split(needs.detect_changes.outputs.changed_functions, ' '), '","'))) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -259,15 +259,15 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-and-test]
+    needs: [detect_changes, build-and-test]
     if: |
-      needs.detect-changes.outputs.has-changes == 'true' &&
+      needs.detect_changes.outputs.has_changes == 'true' &&
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '/lambda deploy staging')
     environment: staging
     strategy:
       matrix:
-        function: ${{ fromJson(format('[{0}]', join(split(needs.detect-changes.outputs.changed-functions, ' '), '","'))) }}
+        function: ${{ fromJson(format('[{0}]', join(split(needs.detect_changes.outputs.changed_functions, ' '), '","'))) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -322,7 +322,7 @@ jobs:
           echo "Running integration tests for deployed functions"
           
           # Test API Gateway endpoints
-          functions="${{ needs.detect-changes.outputs.changed-functions }}"
+          functions="${{ needs.detect_changes.outputs.changed_functions }}"
           base_url="https://api.dev.brainsway.cloud"
           
           for func in $functions; do
@@ -331,9 +331,9 @@ jobs:
             
             # Test with curl and check response
             if curl -s -f "$url" >/dev/null; then
-              echo "✅ API Gateway integration test passed for $func"
+              echo "API Gateway integration test passed for $func"
             else
-              echo "⚠️ API Gateway integration test failed for $func (may be expected for some functions)"
+              echo "API Gateway integration test failed for $func (may be expected for some functions)"
             fi
           done
 
@@ -347,7 +347,7 @@ jobs:
         run: |
           echo "## Lambda CI/CD Pipeline Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Functions Processed:** ${{ needs.detect-changes.outputs.changed-functions }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Functions Processed:** ${{ needs.detect_changes.outputs.changed_functions }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Results:**" >> $GITHUB_STEP_SUMMARY
           echo "- Quality Gates: ${{ needs.quality-gates.result }}" >> $GITHUB_STEP_SUMMARY

@@ -9,23 +9,24 @@ on:
 
 jobs:
   network-verification:
-    name: "🌐 Network Verification - ${{ inputs.environment }}"
+    name: "Network Verification - ${{ inputs.environment }}"
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "🔑 Configure AWS Credentials"
+      - name: "Configure AWS Credentials"
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
           aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
           aws-region: us-east-2
       
-      - name: "🌐 VPC Verification"
+      - name: "VPC Verification"
+        id: vpc_verification
         run: |
-          echo "🌐 Verifying VPC configuration for ${{ inputs.environment }}..."
+          echo "Verifying VPC configuration for ${{ inputs.environment }}..."
           
           # Find VPCs for this environment
           VPCS=$(aws ec2 describe-vpcs \
@@ -34,7 +35,7 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$VPCS" ] && [ "$VPCS" != "" ]; then
-            echo "📋 VPCs found for ${{ inputs.environment }}:"
+            echo "VPCs found for ${{ inputs.environment }}:"
             echo "$VPCS"
             
             # Count VPCs
@@ -42,7 +43,7 @@ jobs:
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
               --query 'length(Vpcs)' --output text)
             
-            echo "📊 VPC Count: $VPC_COUNT"
+            echo "VPC Count: $VPC_COUNT"
             echo "vpc_count=$VPC_COUNT" >> $GITHUB_OUTPUT
             
             # Check VPC states
@@ -50,18 +51,19 @@ jobs:
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=state,Values=available" \
               --query 'length(Vpcs)' --output text)
             
-            echo "✅ Available VPCs: $AVAILABLE_VPCS"
+            echo "Available VPCs: $AVAILABLE_VPCS"
             echo "available_vpcs=$AVAILABLE_VPCS" >> $GITHUB_OUTPUT
             
           else
-            echo "📝 No VPCs found for ${{ inputs.environment }}"
+            echo "No VPCs found for ${{ inputs.environment }}"
             echo "vpc_count=0" >> $GITHUB_OUTPUT
             echo "available_vpcs=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "🔗 Subnet Verification"
+      - name: "Subnet Verification"
+        id: subnet_verification
         run: |
-          echo "🔗 Verifying subnet configuration..."
+          echo "Verifying subnet configuration..."
           
           # Find subnets for this environment
           SUBNETS=$(aws ec2 describe-subnets \
@@ -70,7 +72,7 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$SUBNETS" ] && [ "$SUBNETS" != "" ]; then
-            echo "📋 Subnets found for ${{ inputs.environment }}:"
+            echo "Subnets found for ${{ inputs.environment }}:"
             echo "$SUBNETS"
             
             # Count subnets by type
@@ -86,7 +88,7 @@ jobs:
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=tag:Type,Values=private" \
               --query 'length(Subnets)' --output text 2>/dev/null || echo "0")
             
-            echo "📊 Subnet Summary:"
+            echo "Subnet Summary:"
             echo "  Total: $TOTAL_SUBNETS"
             echo "  Public: $PUBLIC_SUBNETS"
             echo "  Private: $PRIVATE_SUBNETS"
@@ -96,15 +98,16 @@ jobs:
             echo "private_subnets=$PRIVATE_SUBNETS" >> $GITHUB_OUTPUT
             
           else
-            echo "📝 No subnets found for ${{ inputs.environment }}"
+            echo "No subnets found for ${{ inputs.environment }}"
             echo "subnet_count=0" >> $GITHUB_OUTPUT
             echo "public_subnets=0" >> $GITHUB_OUTPUT
             echo "private_subnets=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "🌐 Internet Gateway Verification"
+      - name: "Internet Gateway Verification"
+        id: internet_gateway_verification
         run: |
-          echo "🌐 Verifying Internet Gateway configuration..."
+          echo "Verifying Internet Gateway configuration..."
           
           # Find Internet Gateways
           IGWS=$(aws ec2 describe-internet-gateways \
@@ -113,24 +116,25 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$IGWS" ] && [ "$IGWS" != "" ]; then
-            echo "📋 Internet Gateways found:"
+            echo "Internet Gateways found:"
             echo "$IGWS"
             
             IGW_COUNT=$(aws ec2 describe-internet-gateways \
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
               --query 'length(InternetGateways)' --output text)
             
-            echo "📊 Internet Gateway Count: $IGW_COUNT"
+            echo "Internet Gateway Count: $IGW_COUNT"
             echo "igw_count=$IGW_COUNT" >> $GITHUB_OUTPUT
             
           else
-            echo "📝 No Internet Gateways found for ${{ inputs.environment }}"
+            echo "No Internet Gateways found for ${{ inputs.environment }}"
             echo "igw_count=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "🛣️ Route Table Verification"
+      - name: "Route Table Verification"
+        id: route_table_verification
         run: |
-          echo "🛣️ Verifying route table configuration..."
+          echo "Verifying route table configuration..."
           
           # Find route tables
           ROUTE_TABLES=$(aws ec2 describe-route-tables \
@@ -139,14 +143,14 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$ROUTE_TABLES" ] && [ "$ROUTE_TABLES" != "" ]; then
-            echo "📋 Route Tables found:"
+            echo "Route Tables found:"
             echo "$ROUTE_TABLES"
             
             RT_COUNT=$(aws ec2 describe-route-tables \
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
               --query 'length(RouteTables)' --output text)
             
-            echo "📊 Route Table Count: $RT_COUNT"
+            echo "Route Table Count: $RT_COUNT"
             echo "route_table_count=$RT_COUNT" >> $GITHUB_OUTPUT
             
             # Check for internet routes
@@ -155,18 +159,19 @@ jobs:
               --query 'RouteTables[?Routes[?DestinationCidrBlock==`0.0.0.0/0`]]' \
               --output text 2>/dev/null | wc -l || echo "0")
             
-            echo "🌐 Route tables with internet access: $INTERNET_ROUTES"
+            echo "Route tables with internet access: $INTERNET_ROUTES"
             echo "internet_routes=$INTERNET_ROUTES" >> $GITHUB_OUTPUT
             
           else
-            echo "📝 No route tables found for ${{ inputs.environment }}"
+            echo "No route tables found for ${{ inputs.environment }}"
             echo "route_table_count=0" >> $GITHUB_OUTPUT
             echo "internet_routes=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "🛡️ Security Group Verification"
+      - name: "Security Group Verification"
+        id: security_group_verification
         run: |
-          echo "🛡️ Verifying security group configuration..."
+          echo "Verifying security group configuration..."
           
           # Find security groups
           SECURITY_GROUPS=$(aws ec2 describe-security-groups \
@@ -175,14 +180,14 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$SECURITY_GROUPS" ] && [ "$SECURITY_GROUPS" != "" ]; then
-            echo "📋 Security Groups found:"
+            echo "Security Groups found:"
             echo "$SECURITY_GROUPS"
             
             SG_COUNT=$(aws ec2 describe-security-groups \
               --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
               --query 'length(SecurityGroups)' --output text)
             
-            echo "📊 Security Group Count: $SG_COUNT"
+            echo "Security Group Count: $SG_COUNT"
             echo "security_group_count=$SG_COUNT" >> $GITHUB_OUTPUT
             
             # Check for overly permissive rules
@@ -191,11 +196,11 @@ jobs:
               --query 'SecurityGroups[?IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]]' \
               --output text 2>/dev/null | wc -l || echo "0")
             
-            echo "⚠️ Security groups with 0.0.0.0/0 rules: $OPEN_RULES"
+            echo "Security groups with 0.0.0.0/0 rules: $OPEN_RULES"
             echo "open_security_rules=$OPEN_RULES" >> $GITHUB_OUTPUT
             
             if [ "$OPEN_RULES" -gt 0 ]; then
-              echo "🔍 Security groups with wide-open access:"
+              echo "Security groups with wide-open access:"
               aws ec2 describe-security-groups \
                 --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
                 --query 'SecurityGroups[?IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]].{Id:GroupId,Name:GroupName}' \
@@ -203,14 +208,15 @@ jobs:
             fi
             
           else
-            echo "📝 No security groups found for ${{ inputs.environment }}"
+            echo "No security groups found for ${{ inputs.environment }}"
             echo "security_group_count=0" >> $GITHUB_OUTPUT
             echo "open_security_rules=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "🔗 NAT Gateway Verification"
+      - name: "NAT Gateway Verification"
+        id: nat_gateway_verification
         run: |
-          echo "🔗 Verifying NAT Gateway configuration..."
+          echo "Verifying NAT Gateway configuration..."
           
           # Find NAT Gateways
           NAT_GATEWAYS=$(aws ec2 describe-nat-gateways \
@@ -219,14 +225,14 @@ jobs:
             --output table 2>/dev/null || echo "")
           
           if [ -n "$NAT_GATEWAYS" ] && [ "$NAT_GATEWAYS" != "" ]; then
-            echo "📋 NAT Gateways found:"
+            echo "NAT Gateways found:"
             echo "$NAT_GATEWAYS"
             
             NAT_COUNT=$(aws ec2 describe-nat-gateways \
               --filter "Name=tag:Environment,Values=${{ inputs.environment }}" \
               --query 'length(NatGateways)' --output text)
             
-            echo "📊 NAT Gateway Count: $NAT_COUNT"
+            echo "NAT Gateway Count: $NAT_COUNT"
             echo "nat_gateway_count=$NAT_COUNT" >> $GITHUB_OUTPUT
             
             # Check states
@@ -234,25 +240,26 @@ jobs:
               --filter "Name=tag:Environment,Values=${{ inputs.environment }}" "Name=state,Values=available" \
               --query 'length(NatGateways)' --output text)
             
-            echo "✅ Available NAT Gateways: $AVAILABLE_NATS"
+            echo "Available NAT Gateways: $AVAILABLE_NATS"
             echo "available_nat_gateways=$AVAILABLE_NATS" >> $GITHUB_OUTPUT
             
           else
-            echo "📝 No NAT Gateways found for ${{ inputs.environment }}"
+            echo "No NAT Gateways found for ${{ inputs.environment }}"
             echo "nat_gateway_count=0" >> $GITHUB_OUTPUT
             echo "available_nat_gateways=0" >> $GITHUB_OUTPUT
           fi
       
-      - name: "📊 Network Health Assessment"
+      - name: "Network Health Assessment"
+        id: network_health
         run: |
-          echo "📊 Performing network health assessment..."
+          echo "Performing network health assessment..."
           
-          VPC_COUNT="${{ steps.vpc-verification.outputs.vpc_count }}"
-          SUBNET_COUNT="${{ steps.subnet-verification.outputs.subnet_count }}"
-          IGW_COUNT="${{ steps.internet-gateway-verification.outputs.igw_count }}"
-          OPEN_RULES="${{ steps.security-group-verification.outputs.open_security_rules }}"
+          VPC_COUNT="${{ steps.vpc_verification.outputs.vpc_count }}"
+          SUBNET_COUNT="${{ steps.subnet_verification.outputs.subnet_count }}"
+          IGW_COUNT="${{ steps.internet_gateway_verification.outputs.igw_count }}"
+          OPEN_RULES="${{ steps.security_group_verification.outputs.open_security_rules }}"
           
-          echo "🏥 Network Health Summary:"
+          echo "Network Health Summary:"
           echo "  VPCs: $VPC_COUNT"
           echo "  Subnets: $SUBNET_COUNT"
           echo "  Internet Gateways: $IGW_COUNT"
@@ -278,30 +285,30 @@ jobs:
           fi
           
           if [ $HEALTH_SCORE -ge 80 ]; then
-            echo "✅ Network health: EXCELLENT ($HEALTH_SCORE/100)"
+            echo "Network health: EXCELLENT ($HEALTH_SCORE/100)"
             echo "network_health=excellent" >> $GITHUB_OUTPUT
           elif [ $HEALTH_SCORE -ge 60 ]; then
-            echo "⚠️ Network health: GOOD ($HEALTH_SCORE/100)"
+            echo "Network health: GOOD ($HEALTH_SCORE/100)"
             echo "network_health=good" >> $GITHUB_OUTPUT
           elif [ $HEALTH_SCORE -ge 40 ]; then
-            echo "⚠️ Network health: FAIR ($HEALTH_SCORE/100)"
+            echo "Network health: FAIR ($HEALTH_SCORE/100)"
             echo "network_health=fair" >> $GITHUB_OUTPUT
           else
-            echo "❌ Network health: POOR ($HEALTH_SCORE/100)"
+            echo "Network health: POOR ($HEALTH_SCORE/100)"
             echo "network_health=poor" >> $GITHUB_OUTPUT
           fi
           
           if [ -n "$HEALTH_ISSUES" ]; then
-            echo "🔍 Issues detected: $HEALTH_ISSUES"
+            echo "Issues detected: $HEALTH_ISSUES"
             echo "health_issues=$HEALTH_ISSUES" >> $GITHUB_OUTPUT
           fi
           
           echo "health_score=$HEALTH_SCORE" >> $GITHUB_OUTPUT
       
-      - name: "📊 Generate Network Report"
+      - name: "Generate Network Report"
         if: always()
         run: |
-          echo "📊 Generating network verification report..."
+          echo "Generating network verification report..."
           
           cat > network-report-${{ inputs.environment }}.json << EOF
           {
@@ -309,34 +316,34 @@ jobs:
             "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
             "resources": {
               "vpcs": {
-                "total": ${{ steps.vpc-verification.outputs.vpc_count || 0 }},
-                "available": ${{ steps.vpc-verification.outputs.available_vpcs || 0 }}
+                "total": ${{ steps.vpc_verification.outputs.vpc_count || 0 }},
+                "available": ${{ steps.vpc_verification.outputs.available_vpcs || 0 }}
               },
               "subnets": {
-                "total": ${{ steps.subnet-verification.outputs.subnet_count || 0 }},
-                "public": ${{ steps.subnet-verification.outputs.public_subnets || 0 }},
-                "private": ${{ steps.subnet-verification.outputs.private_subnets || 0 }}
+                "total": ${{ steps.subnet_verification.outputs.subnet_count || 0 }},
+                "public": ${{ steps.subnet_verification.outputs.public_subnets || 0 }},
+                "private": ${{ steps.subnet_verification.outputs.private_subnets || 0 }}
               },
-              "internet_gateways": ${{ steps.internet-gateway-verification.outputs.igw_count || 0 }},
-              "route_tables": ${{ steps.route-table-verification.outputs.route_table_count || 0 }},
-              "security_groups": ${{ steps.security-group-verification.outputs.security_group_count || 0 }},
-              "nat_gateways": ${{ steps.nat-gateway-verification.outputs.nat_gateway_count || 0 }}
+              "internet_gateways": ${{ steps.internet_gateway_verification.outputs.igw_count || 0 }},
+              "route_tables": ${{ steps.route_table_verification.outputs.route_table_count || 0 }},
+              "security_groups": ${{ steps.security_group_verification.outputs.security_group_count || 0 }},
+              "nat_gateways": ${{ steps.nat_gateway_verification.outputs.nat_gateway_count || 0 }}
             },
             "security": {
-              "open_security_rules": ${{ steps.security-group-verification.outputs.open_security_rules || 0 }},
-              "internet_routes": ${{ steps.route-table-verification.outputs.internet_routes || 0 }}
+              "open_security_rules": ${{ steps.security_group_verification.outputs.open_security_rules || 0 }},
+              "internet_routes": ${{ steps.route_table_verification.outputs.internet_routes || 0 }}
             },
             "health": {
-              "score": ${{ steps.network-health.outputs.health_score || 0 }},
-              "status": "${{ steps.network-health.outputs.network_health || 'unknown' }}",
-              "issues": "${{ steps.network-health.outputs.health_issues || 'none' }}"
+              "score": ${{ steps.network_health.outputs.health_score || 0 }},
+              "status": "${{ steps.network_health.outputs.network_health || 'unknown' }}",
+              "issues": "${{ steps.network_health.outputs.health_issues || 'none' }}"
             }
           }
           EOF
           
-          echo "✅ Network report generated: network-report-${{ inputs.environment }}.json"
+          echo "Network report generated: network-report-${{ inputs.environment }}.json"
       
-      - name: "💾 Upload Network Report"
+      - name: "Upload Network Report"
         uses: actions/upload-artifact@v4
         with:
           name: network-report-${{ inputs.environment }}

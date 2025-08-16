@@ -12,20 +12,20 @@ on:
 
 jobs:
   generate-report:
-    name: "📊 Generate Infrastructure Report"
+    name: "Generate Infrastructure Report"
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "📥 Download Artifacts"
+      - name: "Download Artifacts"
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
         continue-on-error: true
       
-      - name: "📊 Generate HTML Report"
+      - name: "Generate HTML Report"
         run: |
           cat > infrastructure-report.html << 'EOF'
           <!DOCTYPE html>
@@ -106,7 +106,7 @@ jobs:
           <body>
               <div class="container">
                   <div class="header">
-                      <h1>🏗️ Infrastructure Pipeline Report</h1>
+                      <h1>Infrastructure Pipeline Report</h1>
                       <p>
                           <strong>Run:</strong> #${{ github.run_number }}<br>
                           <strong>Trigger:</strong> ${{ github.event_name }}<br>
@@ -117,7 +117,7 @@ jobs:
                   </div>
                   
                   <div class="section">
-                      <h2>📊 Pipeline Summary</h2>
+                      <h2>Pipeline Summary</h2>
                       <div>
                           <div class="metric">
                               <div class="metric-label">Environments</div>
@@ -133,7 +133,7 @@ jobs:
                   </div>
                   
                   <div class="section">
-                      <h2>🔄 Pipeline Stages</h2>
+                      <h2>Pipeline Stages</h2>
                       <table>
                           <thead>
                               <tr>
@@ -145,33 +145,33 @@ jobs:
                           </thead>
                           <tbody>
                               <tr>
-                                  <td>🔍 Detect Changes</td>
-                                  <td class="stage-success">✅ Success</td>
+                                  <td>Detect Changes</td>
+                                  <td class="stage-success">Success</td>
                                   <td>~5s</td>
                                   <td>Detected changes in ${{ inputs.environments }}</td>
                               </tr>
                               <tr>
-                                  <td>✅ Validate</td>
-                                  <td class="stage-success">✅ Success</td>
+                                  <td>Validate</td>
+                                  <td class="stage-success">Success</td>
                                   <td>~15s</td>
                                   <td>Syntax validation passed</td>
                               </tr>
                               <tr>
-                                  <td>📋 Plan</td>
+                                  <td>Plan</td>
                                   <td class="stage-${{ inputs.status }}">
-                                      ${{ inputs.status == 'success' && '✅ Success' || '❌ Failed' }}
+                                      ${{ inputs.status == 'success' && 'Success' || 'Failed' }}
                                   </td>
                                   <td>Variable</td>
                                   <td>Terraform planning phase</td>
                               </tr>
                               <tr>
-                                  <td>🚀 Deploy</td>
-                                  <td class="stage-skipped">⏭️ Skipped</td>
+                                  <td>Deploy</td>
+                                  <td class="stage-skipped">Skipped</td>
                                   <td>-</td>
                                   <td>Only runs on main branch</td>
                               </tr>
                               <tr>
-                                  <td>🔍 Verify</td>
+                                  <td>Verify</td>
                                   <td>-</td>
                                   <td>-</td>
                                   <td>Resource verification</td>
@@ -181,7 +181,7 @@ jobs:
                   </div>
                   
                   <div class="section">
-                      <h2>📝 Logs & Artifacts</h2>
+                      <h2>Logs & Artifacts</h2>
                       <ul>
                           <li><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Logs</a></li>
                           <li><a href="${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}">View Pull Request</a></li>
@@ -192,16 +192,16 @@ jobs:
           </html>
           EOF
           
-          echo "✅ Report generated: infrastructure-report.html"
+          echo "Report generated: infrastructure-report.html"
       
-      - name: "💾 Upload Report"
+      - name: "Upload Report"
         uses: actions/upload-artifact@v4
         with:
           name: infrastructure-report
           path: infrastructure-report.html
           retention-days: 30
       
-      - name: "💬 Comment on PR"
+      - name: "Comment on PR"
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
@@ -209,17 +209,17 @@ jobs:
             const fs = require('fs');
             
             // Build comment
-            let comment = `## 🏗️ Infrastructure Pipeline Report\n\n`;
+            let comment = `## Infrastructure Pipeline Report\n\n`;
             comment += `**Environments:** \`${{ inputs.environments }}\`\n`;
-            comment += `**Status:** ${{ inputs.status == 'success' ? '✅ Success' : '❌ Failed' }}\n`;
+            comment += `**Status:** ${{ inputs.status == 'success' ? 'Success' : 'Failed' }}\n`;
             comment += `**Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n`;
             
             comment += `### Pipeline Stages:\n`;
-            comment += `- 🔍 **Detect Changes:** ✅ Completed\n`;
-            comment += `- ✅ **Validate:** Syntax and dependencies checked\n`;
-            comment += `- 📋 **Plan:** Infrastructure changes planned\n`;
-            comment += `- 🚀 **Deploy:** ${github.ref == 'refs/heads/main' ? 'Will deploy on merge' : 'Skipped (not main branch)'}\n`;
-            comment += `- 🔍 **Verify:** Resource validation\n\n`;
+            comment += `- **Detect Changes:** Completed\n`;
+            comment += `- **Validate:** Syntax and dependencies checked\n`;
+            comment += `- **Plan:** Infrastructure changes planned\n`;
+            comment += `- **Deploy:** ${github.ref == 'refs/heads/main' ? 'Will deploy on merge' : 'Skipped (not main branch)'}\n`;
+            comment += `- **Verify:** Resource validation\n\n`;
             
             comment += `### Next Steps:\n`;
             comment += `1. Review the infrastructure changes\n`;
@@ -227,7 +227,7 @@ jobs:
             comment += `3. Merge to main to trigger deployment\n\n`;
             
             comment += `---\n`;
-            comment += `*🤖 Generated by Infrastructure Pipeline*`;
+            comment += `*Generated by Infrastructure Pipeline*`;
             
             // Post comment
             github.rest.issues.createComment({

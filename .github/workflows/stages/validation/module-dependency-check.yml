@@ -9,39 +9,39 @@ on:
 
 jobs:
   module-dependencies:
-    name: "📦 Module Dependencies - ${{ inputs.environment }}"
+    name: "Module Dependencies - ${{ inputs.environment }}"
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "🔍 Check Module References"
+      - name: "Check Module References"
         run: |
-          echo "📦 Checking module dependencies for ${{ inputs.environment }}..."
+          echo "Checking module dependencies for ${{ inputs.environment }}..."
           
           MODULES_DIR="infra/modules"
           LIVE_DIR="infra/live/${{ inputs.environment }}"
           
           if [ ! -d "$LIVE_DIR" ]; then
-            echo "❌ Environment directory not found: $LIVE_DIR"
+            echo "Environment directory not found: $LIVE_DIR"
             exit 1
           fi
           
-          echo "📂 Scanning directory: $LIVE_DIR"
-          echo "📂 Module source: $MODULES_DIR"
+          echo "Scanning directory: $LIVE_DIR"
+          echo "Module source: $MODULES_DIR"
           
           # Find all module references in terragrunt files
-          echo "🔍 Finding module references..."
+          echo "Finding module references..."
           MODULE_REFS=$(grep -r 'source.*\.\.\/\.\.\/\.\.\/\.\.\/modules' "$LIVE_DIR" 2>/dev/null | \
             sed -E 's/.*modules\/([^"\/]+).*/\1/' | sort -u || echo "")
           
           if [ -z "$MODULE_REFS" ]; then
-            echo "ℹ️ No module references found (this might indicate a configuration issue)"
+            echo "No module references found (this might indicate a configuration issue)"
             exit 0
           fi
           
-          echo "📋 Found module references:"
+          echo "Found module references:"
           echo "$MODULE_REFS" | sed 's/^/  - /'
           
           # Check each referenced module exists
@@ -50,30 +50,30 @@ jobs:
           
           for MODULE in $MODULE_REFS; do
             if [ -d "$MODULES_DIR/$MODULE" ]; then
-              echo "  ✅ Module exists: $MODULE"
+              echo "  Module exists: $MODULE"
               FOUND_MODULES="$FOUND_MODULES $MODULE"
               
               # Check if module has required files
               if [ -f "$MODULES_DIR/$MODULE/main.tf" ]; then
-                echo "    📄 main.tf: ✅"
+                echo "    main.tf: "
               else
-                echo "    📄 main.tf: ⚠️ missing"
+                echo "    main.tf: missing"
               fi
               
               if [ -f "$MODULES_DIR/$MODULE/variables.tf" ]; then
-                echo "    📄 variables.tf: ✅"
+                echo "    variables.tf: "
               else
-                echo "    📄 variables.tf: ⚠️ missing"
+                echo "    variables.tf: missing"
               fi
               
               if [ -f "$MODULES_DIR/$MODULE/outputs.tf" ]; then
-                echo "    📄 outputs.tf: ✅"
+                echo "    outputs.tf: "
               else
-                echo "    📄 outputs.tf: ⚠️ missing"
+                echo "    outputs.tf: missing"
               fi
               
             else
-              echo "  ❌ Missing module: $MODULE"
+              echo "  Missing module: $MODULE"
               MISSING_MODULES="$MISSING_MODULES $MODULE"
             fi
           done
@@ -83,52 +83,52 @@ jobs:
           MISSING_COUNT=$(echo "$MISSING_MODULES" | wc -w)
           
           echo ""
-          echo "📊 Summary:"
-          echo "  ✅ Found modules: $FOUND_COUNT"
-          echo "  ❌ Missing modules: $MISSING_COUNT"
+          echo "Summary:"
+          echo "  Found modules: $FOUND_COUNT"
+          echo "  Missing modules: $MISSING_COUNT"
           
           if [ -n "$MISSING_MODULES" ] && [ "$MISSING_COUNT" -gt 0 ]; then
             echo ""
-            echo "❌ Missing modules detected:"
+            echo "Missing modules detected:"
             echo "$MISSING_MODULES" | tr ' ' '\n' | sed 's/^/  - /'
             echo ""
-            echo "💡 Possible causes:"
+            echo "Possible causes:"
             echo "  - Module not yet created"
             echo "  - Incorrect module reference path"
             echo "  - Module moved or renamed"
             exit 1
           else
             echo ""
-            echo "✅ All module dependencies satisfied"
+            echo "All module dependencies satisfied"
           fi
       
-      - name: "🔍 Check for Circular Dependencies"
+      - name: "Check for Circular Dependencies"
         run: |
-          echo "🔄 Checking for circular dependencies..."
+          echo "Checking for circular dependencies..."
           
           LIVE_DIR="infra/live/${{ inputs.environment }}"
           
           # Look for dependency cycles in terragrunt files
-          echo "🔍 Analyzing dependency chain..."
+          echo "Analyzing dependency chain..."
           
           # Find all dependency declarations
           DEPS=$(find "$LIVE_DIR" -name "terragrunt.hcl" -exec grep -l "dependency" {} \; 2>/dev/null || echo "")
           
           if [ -z "$DEPS" ]; then
-            echo "ℹ️ No dependencies found"
-            echo "✅ No circular dependencies possible"
+            echo "No dependencies found"
+            echo "No circular dependencies possible"
           else
-            echo "📋 Files with dependencies:"
+            echo "Files with dependencies:"
             echo "$DEPS" | sed 's/^/  - /'
             
             # For now, just log this - full cycle detection would require more complex analysis
-            echo "ℹ️ Circular dependency detection requires runtime analysis"
-            echo "✅ Static check complete"
+            echo "Circular dependency detection requires runtime analysis"
+            echo "Static check complete"
           fi
       
-      - name: "📊 Generate Dependency Report"
+      - name: "Generate Dependency Report"
         run: |
-          echo "📊 Generating dependency report..."
+          echo "Generating dependency report..."
           
           cat > dependency-report-${{ inputs.environment }}.json << EOF
           {
@@ -144,9 +144,9 @@ jobs:
           }
           EOF
           
-          echo "✅ Dependency report generated: dependency-report-${{ inputs.environment }}.json"
+          echo "Dependency report generated: dependency-report-${{ inputs.environment }}.json"
       
-      - name: "💾 Upload Dependency Report"
+      - name: "Upload Dependency Report"
         uses: actions/upload-artifact@v4
         with:
           name: dependency-report-${{ inputs.environment }}

@@ -69,7 +69,7 @@ jobs:
   # Infrastructure Pipeline - Calls modular workflow
   infrastructure:
     needs: route_pipeline
-    uses: .github/workflows/infra/infra-simple.yml
+    uses: ./.github/workflows/infra/infra-simple.yml
     with:
       environment: "dev"
       action: "plan"

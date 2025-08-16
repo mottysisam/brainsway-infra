@@ -26,18 +26,18 @@ on:
 
 jobs:
   detect-functions:
-    name: "🔍 Detect Lambda Functions"
+    name: "Detect Lambda Functions"
     runs-on: ubuntu-latest
     outputs:
       functions: ${{ steps.detect.outputs.functions }}
       
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - name: "🔍 Detect Changed Functions"
+      - name: "Detect Changed Functions"
         id: detect
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -65,10 +65,10 @@ jobs:
           fi
           
           echo "functions=$FUNCTIONS" >> $GITHUB_OUTPUT
-          echo "📦 Functions to process: $FUNCTIONS"
+          echo "Functions to process: $FUNCTIONS"
   
   test-functions:
-    name: "🧪 Test - ${{ matrix.function }}"
+    name: "Test - ${{ matrix.function }}"
     needs: detect-functions
     if: ${{ needs.detect-functions.outputs.functions != '[]' }}
     runs-on: ubuntu-latest
@@ -77,10 +77,10 @@ jobs:
         function: ${{ fromJSON(needs.detect-functions.outputs.functions) }}
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "🔍 Detect Runtime"
+      - name: "Detect Runtime"
         id: runtime
         run: |
           FUNC_DIR="infra/lambda-functions/${{ matrix.function }}"
@@ -88,31 +88,31 @@ jobs:
           # Detect runtime from file extensions
           if [ -f "$FUNC_DIR/src/lambda_function.py" ] || [ -f "$FUNC_DIR/lambda_function.py" ]; then
             echo "runtime=python" >> $GITHUB_OUTPUT
-            echo "🐍 Python runtime detected"
+            echo "Python runtime detected"
           elif [ -f "$FUNC_DIR/src/index.js" ] || [ -f "$FUNC_DIR/index.js" ]; then
             echo "runtime=nodejs" >> $GITHUB_OUTPUT
-            echo "📦 Node.js runtime detected"
+            echo "Node.js runtime detected"
           else
             echo "runtime=unknown" >> $GITHUB_OUTPUT
-            echo "❓ Unknown runtime"
+            echo "Unknown runtime"
           fi
       
-      - name: "🐍 Setup Python"
+      - name: "Setup Python"
         if: steps.runtime.outputs.runtime == 'python'
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       
-      - name: "📦 Setup Node.js"
+      - name: "Setup Node.js"
         if: steps.runtime.outputs.runtime == 'nodejs'
         uses: actions/setup-node@v3
         with:
           node-version: '20'
       
-      - name: "🧪 Run Tests"
+      - name: "Run Tests"
         working-directory: infra/lambda-functions/${{ matrix.function }}
         run: |
-          echo "🧪 Testing ${{ matrix.function }}..."
+          echo "Testing ${{ matrix.function }}..."
           
           if [ "${{ steps.runtime.outputs.runtime }}" = "python" ]; then
             # Python tests
@@ -122,20 +122,20 @@ jobs:
             if [ -f "test_lambda.py" ]; then
               python -m pytest test_lambda.py -v
             else
-              echo "ℹ️ No tests found"
+              echo "No tests found"
             fi
           elif [ "${{ steps.runtime.outputs.runtime }}" = "nodejs" ]; then
             # Node.js tests
             if [ -f "package.json" ]; then
               npm install
-              npm test || echo "ℹ️ No tests configured"
+              npm test || echo "No tests configured"
             else
-              echo "ℹ️ No package.json found"
+              echo "No package.json found"
             fi
           fi
   
   build-and-package:
-    name: "📦 Build - ${{ matrix.function }}"
+    name: "Build - ${{ matrix.function }}"
     needs: [detect-functions, test-functions]
     if: |
       needs.detect-functions.outputs.functions != '[]' &&
@@ -146,17 +146,17 @@ jobs:
         function: ${{ fromJSON(needs.detect-functions.outputs.functions) }}
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "📦 Package Lambda Function"
+      - name: "Package Lambda Function"
         id: package
         run: |
           FUNC_DIR="infra/lambda-functions/${{ matrix.function }}"
           OUTPUT_DIR="build/${{ matrix.function }}"
           mkdir -p "$OUTPUT_DIR"
           
-          echo "📦 Packaging ${{ matrix.function }}..."
+          echo "Packaging ${{ matrix.function }}..."
           
           # Create deployment package
           cd "$FUNC_DIR"
@@ -172,10 +172,10 @@ jobs:
           
           # Calculate package size
           SIZE=$(du -h "$OUTPUT_DIR/function.zip" | cut -f1)
-          echo "📦 Package size: $SIZE"
+          echo "Package size: $SIZE"
           echo "package_path=$OUTPUT_DIR/function.zip" >> $GITHUB_OUTPUT
       
-      - name: "💾 Upload Package"
+      - name: "Upload Package"
         uses: actions/upload-artifact@v4
         with:
           name: lambda-package-${{ matrix.function }}
@@ -183,7 +183,7 @@ jobs:
           retention-days: 7
   
   deploy-to-aws:
-    name: "🚀 Deploy to AWS - ${{ matrix.function }}"
+    name: "Deploy to AWS - ${{ matrix.function }}"
     needs: [detect-functions, build-and-package]
     if: |
       needs.detect-functions.outputs.functions != '[]' &&
@@ -194,13 +194,13 @@ jobs:
         function: ${{ fromJSON(needs.detect-functions.outputs.functions) }}
     
     steps:
-      - name: "📥 Download Package"
+      - name: "Download Package"
         uses: actions/download-artifact@v4
         with:
           name: lambda-package-${{ matrix.function }}
           path: package/
       
-      - name: "🔍 Determine Environment"
+      - name: "Determine Environment"
         id: env
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -210,18 +210,18 @@ jobs:
             ENV="dev"
           fi
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "🎯 Target environment: $ENV"
+          echo "Target environment: $ENV"
       
-      - name: "🔑 Configure AWS Credentials"
+      - name: "Configure AWS Credentials"
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(steps.env.outputs.environment))] }}
           aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(steps.env.outputs.environment))] }}
           aws-region: us-east-2
       
-      - name: "🚀 Deploy Lambda Code"
+      - name: "Deploy Lambda Code"
         run: |
-          echo "🚀 Deploying ${{ matrix.function }} to ${{ steps.env.outputs.environment }}..."
+          echo "Deploying ${{ matrix.function }} to ${{ steps.env.outputs.environment }}..."
           
           # Update function code
           aws lambda update-function-code \
@@ -230,12 +230,12 @@ jobs:
             --query 'LastModified' \
             --output text
           
-          echo "✅ Deployment complete"
+          echo "Deployment complete"
       
-      - name: "🧪 Smoke Test"
+      - name: "Smoke Test"
         continue-on-error: true
         run: |
-          echo "🧪 Running smoke test..."
+          echo "Running smoke test..."
           
           # Wait for function to be ready
           sleep 5
@@ -251,7 +251,7 @@ jobs:
           
           # Check for errors
           if grep -q "errorMessage" response.json; then
-            echo "⚠️ Function returned an error"
+            echo "Function returned an error"
           else
-            echo "✅ Smoke test passed"
+            echo "Smoke test passed"
           fi
