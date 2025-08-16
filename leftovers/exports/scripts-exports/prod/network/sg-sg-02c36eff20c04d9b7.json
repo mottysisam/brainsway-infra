@@ -1,0 +1,55 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-02c36eff20c04d9b7",
+            "IpPermissionsEgress": [
+                {
+                    "IpProtocol": "-1",
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "CidrIp": "0.0.0.0/0"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ],
+            "VpcId": "vpc-d2a9d9bb",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-2:154948530138:security-group/sg-02c36eff20c04d9b7",
+            "OwnerId": "154948530138",
+            "GroupName": "gittyHome",
+            "Description": "Allows connection from developer home",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 5432,
+                    "ToPort": 5432,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "allow postgresSQL",
+                            "CidrIp": "195.60.232.215/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                },
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 22,
+                    "ToPort": 22,
+                    "UserIdGroupPairs": [],
+                    "IpRanges": [
+                        {
+                            "Description": "ssh for admin operation",
+                            "CidrIp": "195.60.232.215/32"
+                        }
+                    ],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        }
+    ]
+}

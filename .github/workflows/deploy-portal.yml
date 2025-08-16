@@ -71,66 +71,66 @@ jobs:
           
           # Check required files exist
           if [ ! -f "portal-vanilla/index.html" ]; then
-            echo "❌ index.html not found"
+            echo "index.html not found"
             exit 1
           fi
           
           if [ ! -f "portal-vanilla/styles.css" ]; then
-            echo "❌ styles.css not found"
+            echo "styles.css not found"
             exit 1
           fi
           
           if [ ! -f "portal-vanilla/script.js" ]; then
-            echo "❌ script.js not found"
+            echo "script.js not found"
             exit 1
           fi
           
-          echo "✅ All required files found"
-          echo "📄 File sizes:"
+          echo "All required files found"
+          echo "File sizes:"
           ls -lh portal-vanilla/
           
-          echo "🔍 Checking HTML structure..."
+          echo "Checking HTML structure..."
           if grep -q "Brainsway Infrastructure Portal" portal-vanilla/index.html; then
-            echo "✅ HTML title found"
+            echo "HTML title found"
           else
-            echo "❌ HTML title not found"
+            echo "HTML title not found"
             exit 1
           fi
           
-          echo "🎨 Checking CSS..."
+          echo "Checking CSS..."
           if [ $(wc -l < portal-vanilla/styles.css) -gt 50 ]; then
-            echo "✅ CSS file has content ($(wc -l < portal-vanilla/styles.css) lines)"
+            echo "CSS file has content ($(wc -l < portal-vanilla/styles.css) lines)"
           else
-            echo "❌ CSS file too small"
+            echo "CSS file too small"
             exit 1
           fi
           
-          echo "🔧 Checking JavaScript..."
+          echo "Checking JavaScript..."
           if grep -q "ApiService" portal-vanilla/script.js; then
-            echo "✅ JavaScript has API service for real data"
+            echo "JavaScript has API service for real data"
           else
-            echo "❌ JavaScript missing API service"
+            echo "JavaScript missing API service"
             exit 1
           fi
           
-          echo "🎉 Portal validation successful!"
+          echo "Portal validation successful!"
 
       - name: Comment PR with preview info
         uses: actions/github-script@v7
         with:
           script: |
-            const comment = `## 🚀 Portal Validation Success
+            const comment = `## Portal Validation Success
             
             The vanilla HTML Infrastructure Portal has been validated successfully! 
             
             **Validation Summary:**
-            - ✅ HTML structure verified
-            - ✅ CSS styling validated 
-            - ✅ JavaScript functionality confirmed
-            - ✅ Real API service integration working
+            - HTML structure verified
+            - CSS styling validated 
+            - JavaScript functionality confirmed
+            - Real API service integration working
             
             Once this PR is merged to main, the portal will be deployed to:
-            📊 **[brainsway-infra.github.io](https://mottysisam.github.io/brainsway-infra/)**
+            **[brainsway-infra.github.io](https://mottysisam.github.io/brainsway-infra/)**
             
             ### What's included:
             - Pure HTML/CSS/JS implementation (no build process needed)
@@ -150,7 +150,7 @@ jobs:
             });
             
             const existingComment = comments.find(comment => 
-              comment.body.includes('🚀 Portal Validation Success')
+              comment.body.includes('Portal Validation Success')
             );
             
             if (!existingComment) {

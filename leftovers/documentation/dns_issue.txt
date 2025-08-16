@@ -1,0 +1,356 @@
+Alright, here’s what’s actually happening and how to unstick it fast:
+
+What’s wrong
+Your prod account has TWO public hosted zones named brainsway.cloud:
+
+Z0391113OQXSRY8SUJ92
+
+Z0141832VCX05YCMAZDE
+
+Your query for the NS dev.brainsway.cloud in the parent zone returned nothing → there’s no NS delegation published in the parent that the registrar is using.
+
+In dev you created two dev.brainsway.cloud zones, each with different NS sets:
+
+Z0384990AYTESOPSBHG5 → ns-332.awsdns-41.com …
+
+Z0395552CM35QVLIG9CH → ns-975.awsdns-57.net …
+
+ACM is stuck Pending validation because the CNAMEs live in a zone that isn’t delegated from the real parent (or in the wrong child zone).
+
+Fix it (10–15 min)
+Find which parent zone is the real one (registrar-attached)
+
+bash
+Copy
+Edit
+# Get registrar NS (Route53 Domains) — run in prod profile
+aws route53domains get-domain-detail \
+  --profile bwamazonprod \
+  --domain-name brainsway.cloud \
+  --query 'Nameservers[].Name' \
+  --output text
+
+# Get NS sets for both candidate parent hosted zones
+for Z in Z0391113OQXSRY8SUJ92 Z0141832VCX05YCMAZDE; do
+  echo "=== $Z ==="
+  aws route53 get-hosted-zone \
+    --profile bwamazonprod \
+    --id "$Z" \
+    --query 'DelegationSet.NameServers' \
+    --output text
+done
+Pick the parent zone ID whose NS match the registrar nameservers. That’s your real PARENT_ZONE_ID. The other is a zombie; we’ll kill it later.
+
+Pick ONE dev subzone and delegate to it
+I’d keep Z0384990AYTESOPSBHG5 (the ns-332 / ns-1745 / ns-1522 / ns-954 set). Then publish an NS record in the real parent zone:
+
+bash
+Copy
+Edit
+PARENT_ZONE_ID=<real_parent_zone_id>
+cat >/tmp/dev-ns.json <<'JSON'
+{
+  "Comment": "Delegate dev.brainsway.cloud to dev account",
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Name": "dev.brainsway.cloud.",
+      "Type": "NS",
+      "TTL": 300,
+      "ResourceRecords": [
+        {"Value": "ns-332.awsdns-41.com."},
+        {"Value": "ns-1745.awsdns-26.co.uk."},
+        {"Value": "ns-1522.awsdns-62.org."},
+        {"Value": "ns-954.awsdns-55.net."}
+      ]
+    }
+  }]
+}
+JSON
+
+aws route53 change-resource-record-sets \
+  --profile bwamazonprod \
+  --hosted-zone-id "$PARENT_ZONE_ID" \
+  --change-batch file:///tmp/dev-ns.json
+Create BOTH ACM validation CNAMEs in the chosen dev zone
+Your cert shows two CNAMEs (one for api.dev and one for dev SAN). Make sure they exist in Z0384990AYTESOPSBHG5:
+
+bash
+Copy
+Edit
+DEV_ZONE_ID=Z0384990AYTESOPSBHG5
+
+# Replace the Name/Value pairs below with EXACT values from your describe-certificate output
+cat >/tmp/dev-acm.json <<'JSON'
+{
+  "Comment": "ACM validation CNAMEs for api.dev.brainsway.cloud",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_d8c5eed91db893a116d517d9c575df7a.api.dev.brainsway.cloud.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": "_ccffc3247c31eeadee51c4650012c625.xlfgrmvvlj.acm-validations.aws."}]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_31e6d32f2d1f6663eddee91aa269c48b.dev.brainsway.cloud.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": "_5c206bd030daa4c3129740e736b2946d.xlfgrmvvlj.acm-validations.aws."}]
+      }
+    }
+  ]
+}
+JSON
+
+aws route53 change-resource-record-sets \
+  --profile bwamazondev \
+  --hosted-zone-id "$DEV_ZONE_ID" \
+  --change-batch file:///tmp/dev-acm.json
+Verify + wait
+
+bash
+Copy
+Edit
+# NS delegation visible?
+dig +noall +answer NS dev.brainsway.cloud @8.8.8.8
+
+# CNAMEs visible from the world?
+dig +noall +answer _d8c5eed91db893a116d517d9c575df7a.api.dev.brainsway.cloud @8.8.8.8
+dig +noall +answer _31e6d32f2d1f6663eddee91aa269c48b.dev.brainsway.cloud @8.8.8.8
+
+# Watch ACM flip to ISSUED (usually <15 min once public)
+aws acm describe-certificate \
+  --profile bwamazondev \
+  --region us-east-2 \
+  --certificate-arn arn:aws:acm:us-east-2:824357028182:certificate/5080e709-becf-42cc-aef2-2a943bb31b31 \
+  --query 'Certificate.Status'
+Clean up duplicates to avoid future pain
+
+In prod: once you confirm the real parent zone, delete the duplicate brainsway.cloud zone that isn’t attached to the registrar.
+
+In dev: after validation succeeds, delete the extra dev.brainsway.cloud zone (Z0395552CM35QVLIG9CH) so there’s only one canonical child zone.
+
+Why CI blew up
+Terragrunt planned acm → api-gateway → waf. acm failed because Route53 didn’t have valid, delegated CNAMEs in the correct zone. Fix the delegation + CNAMEs as above; next plan/apply will cruise.
+
+
+
+example below is a drop‑in Bash toolkit with functions to: pick the real parent zone, delegate a subzone, push ACM CNAMEs (auto-pull from cert), verify, wait for ISSUED, and clean up dup zones. It’s idempotent-ish and prints what it’s doing.
+use it as a reference to validate and fix the problem:
+prereqs: awscli, jq, dig in PATH. Profiles: bwamazonprod, bwamazondev, bwamazonstaging.
+
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ===== utils =====
+log() { echo -e "[$(date +%H:%M:%S)] $*"; }
+req() { command -v "$1" >/dev/null || { echo "missing: $1"; exit 1; }; }
+req aws; req jq; req dig
+
+# ===== 1) Discover real parent zone (registrar-attached) =====
+# pick_parent_zone brainsway.cloud bwamazonprod
+pick_parent_zone() {
+  local domain="$1" prod_profile="$2"
+  log "Fetching registrar NS for ${domain}"
+  local reg_ns
+  reg_ns=$(aws route53domains get-domain-detail \
+    --profile "${prod_profile}" \
+    --domain-name "${domain}" \
+    --query 'Nameservers[].Name' --output text | tr '[:upper:]' '[:lower:]' | tr '\t' '\n' | sort)
+
+  log "Registrar NS:\n${reg_ns}"
+
+  log "Listing public hosted zones named ${domain}."
+  local zone_ids
+  zone_ids=$(aws route53 list-hosted-zones-by-name \
+    --profile "${prod_profile}" \
+    --dns-name "${domain}" \
+    --query 'HostedZones[?Name==`'"${domain}."` && Config.PrivateZone==`false`].Id' \
+    --output text | tr '\t' '\n' | sed 's|/hostedzone/||g')
+
+  local match=""
+  for z in $zone_ids; do
+    local hz_ns
+    hz_ns=$(aws route53 get-hosted-zone --profile "${prod_profile}" --id "$z" \
+      --query 'DelegationSet.NameServers' --output text | tr '[:upper:]' '[:lower:]' | tr '\t' '\n' | sort)
+    log "Parent zone $z NS:\n${hz_ns}"
+    if diff <(echo "$reg_ns") <(echo "$hz_ns") >/dev/null; then
+      match="$z"
+    fi
+  done
+
+  if [[ -z "${match}" ]]; then
+    echo "ERROR: No parent hosted zone NS match the registrar’s NS. Fix your registrar or choose manually." >&2
+    exit 1
+  fi
+  echo "${match}"
+}
+
+# ===== 2) Get a child zone’s NS set =====
+# child_zone_ns ZONE_ID bwamazondev
+child_zone_ns() {
+  local child_zone_id="$1" child_profile="$2"
+  aws route53 get-hosted-zone --profile "${child_profile}" --id "${child_zone_id}" \
+    --query 'DelegationSet.NameServers' --output text | tr '\t' '\n'
+}
+
+# ===== 3) Delegate a subdomain from parent to child zone =====
+# delegate_subzone brainsway.cloud PARENT_ZONE_ID dev.brainsway.cloud CHILD_ZONE_ID 300 bwamazonprod bwamazondev
+delegate_subzone() {
+  local parent_domain="$1" parent_zone_id="$2" subdomain="$3" child_zone_id="$4" ttl="$5" \
+        prod_profile="$6" child_profile="$7"
+
+  log "Fetching NS of child zone ${child_zone_id} in ${child_profile}"
+  mapfile -t nsarr < <(child_zone_ns "${child_zone_id}" "${child_profile}")
+
+  log "UPSERT NS ${subdomain}. -> ${nsarr[*]} in parent ${parent_domain} (${parent_zone_id})"
+  local tmpjson
+  tmpjson=$(mktemp)
+  {
+    cat <<JSON
+{
+  "Comment": "Delegate ${subdomain} to child zone ${child_zone_id}",
+  "Changes": [{
+    "Action": "UPSERT",
+    "ResourceRecordSet": {
+      "Name": "${subdomain}.",
+      "Type": "NS",
+      "TTL": ${ttl},
+      "ResourceRecords": [
+JSON
+    for i in "${!nsarr[@]}"; do
+      printf '        {"Value": "%s"}%s\n' "${nsarr[$i]%?}." $([[ $i -lt $((${#nsarr[@]}-1)) ]] && echo "," || true)
+    done
+    cat <<JSON
+      ]
+    }
+  }]
+}
+JSON
+  } >"$tmpjson"
+
+  aws route53 change-resource-record-sets \
+    --profile "${prod_profile}" \
+    --hosted-zone-id "${parent_zone_id}" \
+    --change-batch "file://${tmpjson}" >/dev/null
+
+  log "Delegation submitted. Propagation ~5–10m."
+}
+
+# ===== 4) Publish all ACM validation CNAMEs from a cert into a zone =====
+# publish_acm_cnames_from_cert bwamazondev us-east-2 CERT_ARN DEV_ZONE_ID 300
+publish_acm_cnames_from_cert() {
+  local profile="$1" region="$2" cert_arn="$3" zone_id="$4" ttl="$5"
+
+  log "Pulling DomainValidationOptions for cert ${cert_arn}"
+  local rows
+  rows=$(aws acm describe-certificate --profile "${profile}" --region "${region}" \
+    --certificate-arn "${cert_arn}" \
+    --query 'Certificate.DomainValidationOptions[].ResourceRecord' --output json)
+
+  if [[ "$(echo "$rows" | jq 'length')" -eq 0 ]]; then
+    log "No ResourceRecord entries found on cert; maybe already validated?"
+    return 0
+  fi
+
+  local tmpjson; tmpjson=$(mktemp)
+  jq -n --argjson rr "${rows}" --arg ttl "${ttl}" '
+{
+  Comment:"ACM validation CNAMEs",
+  Changes: ($rr | map({
+    Action:"UPSERT",
+    ResourceRecordSet:{
+      Name: .Name,
+      Type: "CNAME",
+      TTL: ($ttl|tonumber),
+      ResourceRecords:[{Value: .Value}]
+    }
+  }))
+}' > "${tmpjson}"
+
+  log "Upserting $(echo "$rows" | jq 'length') CNAMEs into zone ${zone_id}"
+  aws route53 change-resource-record-sets \
+    --profile "${profile}" \
+    --hosted-zone-id "${zone_id}" \
+    --change-batch "file://${tmpjson}" >/dev/null
+}
+
+# ===== 5) Verify public visibility of delegation & CNAMEs =====
+# verify_delegation dev.brainsway.cloud
+verify_delegation() {
+  local subdomain="$1"
+  log "NS at public resolver:"
+  dig +noall +answer NS "${subdomain}" @8.8.8.8 || true
+}
+# verify_acm_rr NAME
+verify_acm_rr() {
+  local name="$1"
+  log "CNAME visibility @8.8.8.8:"
+  dig +noall +answer CNAME "${name}" @8.8.8.8 || true
+}
+
+# ===== 6) Wait until ACM = ISSUED (poll) =====
+# wait_acm_issued bwamazondev us-east-2 CERT_ARN 900
+wait_acm_issued() {
+  local profile="$1" region="$2" cert_arn="$3" timeout="$4"
+  local start now status
+  start=$(date +%s)
+  while true; do
+    status=$(aws acm describe-certificate --profile "${profile}" --region "${region}" \
+      --certificate-arn "${cert_arn}" --query 'Certificate.Status' --output text || echo "UNKNOWN")
+    log "ACM status: ${status}"
+    [[ "${status}" == "ISSUED" ]] && return 0
+    now=$(date +%s); (( now-start > timeout )) && { echo "Timeout waiting for ISSUED"; return 1; }
+    sleep 15
+  done
+}
+
+# ===== 7) Safety: list duplicate hosted zones for a name =====
+# list_pub_zones brainsway.cloud bwamazonprod
+list_pub_zones() {
+  local domain="$1" profile="$2"
+  aws route53 list-hosted-zones-by-name --profile "${profile}" --dns-name "${domain}" \
+    --query 'HostedZones[?Config.PrivateZone==`false` && ends_with(Name, `.'"${domain}"'.`)].{Id:Id,Name:Name}' \
+    --output table
+}
+
+# ===== 8) Optional cleanup helper =====
+# delete_zone_by_id ZONE_ID PROFILE   (will fail if records exist)
+delete_zone_by_id() {
+  local zone="$1" profile="$2"
+  log "Attempting to delete zone ${zone} (ensure only default NS/SOA remain)"
+  aws route53 delete-hosted-zone --profile "${profile}" --id "${zone}"
+}
+
+# =======================
+# Example end-to-end (DEV)
+# =======================
+# 1) Decide real parent zone
+# REAL_PARENT=$(pick_parent_zone brainsway.cloud bwamazonprod)
+# echo "Parent zone: $REAL_PARENT"
+
+# 2) Choose ONE dev zone (replace with the one you keep)
+# DEV_ZONE_ID=Z0384990AYTESOPSBHG5
+
+# 3) Delegate dev.brainsway.cloud to that dev zone
+# delegate_subzone "brainsway.cloud" "$REAL_PARENT" "dev.brainsway.cloud" "$DEV_ZONE_ID" 300 bwamazonprod bwamazondev
+# verify_delegation dev.brainsway.cloud
+
+# 4) Push ACM validation CNAMEs from cert into dev zone
+# CERT_ARN=arn:aws:acm:us-east-2:824357028182:certificate/5080e709-becf-42cc-aef2-2a943bb31b31
+# publish_acm_cnames_from_cert bwamazondev us-east-2 "$CERT_ARN" "$DEV_ZONE_ID" 300
+
+# 5) (Optional) Verify specific CNAMEs are world-visible
+# verify_acm_rr _d8c5eed91db893a116d517d9c575df7a.api.dev.brainsway.cloud
+# verify_acm_rr _31e6d32f2d1f6663eddee91aa269c48b.dev.brainsway.cloud
+
+# 6) Wait until cert is ISSUED
+# wait_acm_issued bwamazondev us-east-2 "$CERT_ARN" 900
+
+# 7) Repeat for STAGING with its zone/profile.

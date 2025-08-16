@@ -1,0 +1,41 @@
+{
+    "FunctionName": "softwareUpdateHandler",
+    "FunctionArn": "arn:aws:lambda:us-east-2:154948530138:function:softwareUpdateHandler",
+    "Runtime": "python3.6",
+    "Role": "arn:aws:iam::154948530138:role/sf_update_lambda_role",
+    "Handler": "lambda_function.lambda_handler",
+    "CodeSize": 929,
+    "Description": "handle software update results",
+    "Timeout": 10,
+    "MemorySize": 128,
+    "LastModified": "2020-02-18T09:12:44.519+0000",
+    "CodeSha256": "nsEzLiS+SxaQ0ZEYnmm+0PXx28EwthM8QQRNQWVHxY8=",
+    "Version": "$LATEST",
+    "VpcConfig": {
+        "SubnetIds": [],
+        "SecurityGroupIds": [],
+        "VpcId": "",
+        "Ipv6AllowedForDualStack": false
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "868cdf36-124f-4146-82c5-105bf47a86ff",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Zip",
+    "Architectures": [
+        "x86_64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/softwareUpdateHandler"
+    }
+}

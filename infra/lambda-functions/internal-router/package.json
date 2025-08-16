@@ -1,0 +1,12 @@
+{
+  "name": "internal-router",
+  "version": "1.0.0",
+  "description": "Lambda function router for API Gateway integration",
+  "main": "src/index.js",
+  "dependencies": {
+    "aws-sdk": "^2.1472.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

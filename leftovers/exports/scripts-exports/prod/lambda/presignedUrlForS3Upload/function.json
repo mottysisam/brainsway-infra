@@ -1,0 +1,41 @@
+{
+    "Configuration": {
+        "FunctionName": "presignedUrlForS3Upload",
+        "FunctionArn": "arn:aws:lambda:us-east-2:154948530138:function:presignedUrlForS3Upload",
+        "Runtime": "python3.6",
+        "Role": "arn:aws:iam::154948530138:role/lambda_s3_execution",
+        "Handler": "lambda_function.lambda_handler",
+        "CodeSize": 777,
+        "Description": "",
+        "Timeout": 10,
+        "MemorySize": 128,
+        "LastModified": "2025-05-14T05:15:00.000+0000",
+        "CodeSha256": "hAfTVAzcVhWagfRqaaXuv4PSy4k4gRfN0zBWfKphwzc=",
+        "Version": "$LATEST",
+        "TracingConfig": {
+            "Mode": "PassThrough"
+        },
+        "RevisionId": "f209df1c-49ec-4048-a3e0-c4844664bff1",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "PackageType": "Zip",
+        "Architectures": [
+            "x86_64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/presignedUrlForS3Upload"
+        }
+    },
+    "Code": {
+        "RepositoryType": "S3",
+        "Location": "https://awslambda-us-east-2-tasks.s3.us-east-2.amazonaws.com/snapshots/154948530138/presignedUrlForS3Upload-d3c0782d-09e9-4fd6-87d6-a70c92cc9fd2?versionId=2rEo11EiWwkiyKJCm8wPer3Bag7j8q4z&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEHgaCXVzLWVhc3QtMiJHMEUCIQCQLZkSRKEUpl60BeFIo7PSSFycGnph4xJWFfyzwJX0RwIgQbwWjMJR68aPfjWdoYZhQZ%2FPF5SHgIgVK6B6SbXW%2BMMqkgIIsv%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAFGgwxMDQyNDYwMTc4NjUiDI%2Bc%2FmeAIS5ukwoVQirmATcN9kqe6LFQpA8DFco1MpSUtcIbSZ6wbVaCjdc1ZRWUc9HqFzMq5MpyGyKDK%2BO7KuAYYc1GZBxLctven4l8yecKLRWU2dWgxfd%2F%2FWNPe9OaD%2FCh%2FKAW9qWDzYxriV8gi9WXYd4JJ8izi7KfRl97cFsuWJYP1Kw8dHbgMi6YOKfouxIVQvQQOfkNE7cARvtMOwjf5pkjoDxeTlPh1MiyKXo%2FLulZ%2Bn%2BetlkC4T9pzsJZHupY7LhkdO2sBcjyggMYtsGMzBopN6Bk42%2F6R0RGpIQECwZ%2FdhC0bGneZauOfnc6%2FXrLPkmgMO2s2sQGOo8BZ2j2XSlXsJBUGfMm5ch0LmLo0MPPmPaaxCD%2FP4awpVQ2OyfjAXK1dtCOb%2F%2FiKvQEf%2FNyiIVTRey8I70NUwxsTBDfcgpHHMxqo8LbRZQ7vkwn5Za%2FJ1gLNDcmLn56DITca2nYa5VPaosvKZ32Dker3QrZeXI861RraZnrLGqi%2BgIozR8k%2Bl%2FocnOq846IHlE%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20250809T104642Z&X-Amz-SignedHeaders=host&X-Amz-Expires=600&X-Amz-Credential=ASIARQRML75E3FWW3IXH%2F20250809%2Fus-east-2%2Fs3%2Faws4_request&X-Amz-Signature=41f625d3caff46025f4117e725fbdc42a737decaaaa281315f738621b84094d4"
+    }
+}

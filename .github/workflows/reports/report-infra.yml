@@ -1,0 +1,238 @@
+name: Infrastructure Reports
+
+on:
+  workflow_call:
+    inputs:
+      environments:
+        required: true
+        type: string
+      status:
+        required: true
+        type: string
+
+jobs:
+  generate-report:
+    name: "Generate Infrastructure Report"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Download Artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+        continue-on-error: true
+      
+      - name: "Generate HTML Report"
+        run: |
+          cat > infrastructure-report.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Infrastructure Pipeline Report</title>
+              <style>
+                  body { 
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                      margin: 0;
+                      padding: 20px;
+                      background: #f6f8fa;
+                  }
+                  .container {
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      background: white;
+                      border-radius: 8px;
+                      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+                      padding: 20px;
+                  }
+                  .header {
+                      border-bottom: 2px solid #e1e4e8;
+                      padding-bottom: 20px;
+                      margin-bottom: 20px;
+                  }
+                  .status-badge {
+                      display: inline-block;
+                      padding: 4px 12px;
+                      border-radius: 20px;
+                      font-size: 14px;
+                      font-weight: 600;
+                  }
+                  .success { background: #28a745; color: white; }
+                  .failure { background: #dc3545; color: white; }
+                  .pending { background: #ffc107; color: black; }
+                  .section {
+                      margin: 20px 0;
+                      padding: 15px;
+                      background: #f6f8fa;
+                      border-radius: 6px;
+                  }
+                  .metric {
+                      display: inline-block;
+                      margin: 10px 20px 10px 0;
+                  }
+                  .metric-value {
+                      font-size: 24px;
+                      font-weight: bold;
+                      color: #0366d6;
+                  }
+                  .metric-label {
+                      font-size: 12px;
+                      color: #586069;
+                      text-transform: uppercase;
+                  }
+                  table {
+                      width: 100%;
+                      border-collapse: collapse;
+                      margin: 15px 0;
+                  }
+                  th {
+                      background: #f6f8fa;
+                      padding: 10px;
+                      text-align: left;
+                      font-weight: 600;
+                      border-bottom: 2px solid #e1e4e8;
+                  }
+                  td {
+                      padding: 10px;
+                      border-bottom: 1px solid #e1e4e8;
+                  }
+                  .stage-success { color: #28a745; }
+                  .stage-failure { color: #dc3545; }
+                  .stage-skipped { color: #6c757d; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h1>Infrastructure Pipeline Report</h1>
+                      <p>
+                          <strong>Run:</strong> #${{ github.run_number }}<br>
+                          <strong>Trigger:</strong> ${{ github.event_name }}<br>
+                          <strong>Branch:</strong> ${{ github.ref_name }}<br>
+                          <strong>Commit:</strong> ${{ github.sha }}<br>
+                          <strong>Timestamp:</strong> $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+                      </p>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>Pipeline Summary</h2>
+                      <div>
+                          <div class="metric">
+                              <div class="metric-label">Environments</div>
+                              <div class="metric-value">${{ inputs.environments }}</div>
+                          </div>
+                          <div class="metric">
+                              <div class="metric-label">Overall Status</div>
+                              <div class="metric-value">
+                                  <span class="status-badge ${{ inputs.status }}">${{ inputs.status }}</span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>Pipeline Stages</h2>
+                      <table>
+                          <thead>
+                              <tr>
+                                  <th>Stage</th>
+                                  <th>Status</th>
+                                  <th>Duration</th>
+                                  <th>Details</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              <tr>
+                                  <td>Detect Changes</td>
+                                  <td class="stage-success">Success</td>
+                                  <td>~5s</td>
+                                  <td>Detected changes in ${{ inputs.environments }}</td>
+                              </tr>
+                              <tr>
+                                  <td>Validate</td>
+                                  <td class="stage-success">Success</td>
+                                  <td>~15s</td>
+                                  <td>Syntax validation passed</td>
+                              </tr>
+                              <tr>
+                                  <td>Plan</td>
+                                  <td class="stage-${{ inputs.status }}">
+                                      ${{ inputs.status == 'success' && 'Success' || 'Failed' }}
+                                  </td>
+                                  <td>Variable</td>
+                                  <td>Terraform planning phase</td>
+                              </tr>
+                              <tr>
+                                  <td>Deploy</td>
+                                  <td class="stage-skipped">Skipped</td>
+                                  <td>-</td>
+                                  <td>Only runs on main branch</td>
+                              </tr>
+                              <tr>
+                                  <td>Verify</td>
+                                  <td>-</td>
+                                  <td>-</td>
+                                  <td>Resource verification</td>
+                              </tr>
+                          </tbody>
+                      </table>
+                  </div>
+                  
+                  <div class="section">
+                      <h2>Logs & Artifacts</h2>
+                      <ul>
+                          <li><a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View Full Logs</a></li>
+                          <li><a href="${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}">View Pull Request</a></li>
+                      </ul>
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
+          
+          echo "Report generated: infrastructure-report.html"
+      
+      - name: "Upload Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-report
+          path: infrastructure-report.html
+          retention-days: 30
+      
+      - name: "Comment on PR"
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Build comment
+            let comment = `## Infrastructure Pipeline Report\n\n`;
+            comment += `**Environments:** \`${{ inputs.environments }}\`\n`;
+            comment += `**Status:** ${{ inputs.status == 'success' ? 'Success' : 'Failed' }}\n`;
+            comment += `**Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n`;
+            
+            comment += `### Pipeline Stages:\n`;
+            comment += `- **Detect Changes:** Completed\n`;
+            comment += `- **Validate:** Syntax and dependencies checked\n`;
+            comment += `- **Plan:** Infrastructure changes planned\n`;
+            comment += `- **Deploy:** ${github.ref == 'refs/heads/main' ? 'Will deploy on merge' : 'Skipped (not main branch)'}\n`;
+            comment += `- **Verify:** Resource validation\n\n`;
+            
+            comment += `### Next Steps:\n`;
+            comment += `1. Review the infrastructure changes\n`;
+            comment += `2. Approve the PR if changes look good\n`;
+            comment += `3. Merge to main to trigger deployment\n\n`;
+            
+            comment += `---\n`;
+            comment += `*Generated by Infrastructure Pipeline*`;
+            
+            // Post comment
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

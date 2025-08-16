@@ -1,0 +1,126 @@
+name: State Backend Check
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  state-backend:
+    name: "State Backend - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "Check State Backend Configuration"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo "Checking state backend for ${{ inputs.environment }}..."
+          
+          # Extract configuration from env.hcl
+          if [ ! -f "env.hcl" ]; then
+            echo "env.hcl not found"
+            exit 1
+          fi
+          
+          STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
+          LOCK_TABLE=$(grep 'lock_table' env.hcl | cut -d'"' -f2)
+          AWS_ACCOUNT=$(grep 'aws_account' env.hcl | cut -d'"' -f2)
+          AWS_REGION=$(grep 'aws_region' env.hcl | cut -d'"' -f2)
+          
+          echo "Configuration:"
+          echo "  State Bucket: $STATE_BUCKET"
+          echo "  Lock Table: $LOCK_TABLE"
+          echo "  AWS Account: $AWS_ACCOUNT"
+          echo "  AWS Region: $AWS_REGION"
+          
+          # Verify we're in the correct AWS account
+          CURRENT_ACCOUNT=$(aws sts get-caller-identity --query 'Account' --output text)
+          if [ "$CURRENT_ACCOUNT" != "$AWS_ACCOUNT" ]; then
+            echo "Account mismatch!"
+            echo "  Expected: $AWS_ACCOUNT"
+            echo "  Current:  $CURRENT_ACCOUNT"
+            exit 1
+          else
+            echo "  AWS Account verified"
+          fi
+      
+      - name: "Check S3 State Bucket"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
+          
+          echo "Checking S3 state bucket: $STATE_BUCKET"
+          
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "  State bucket exists and is accessible"
+            
+            # Check bucket versioning
+            VERSIONING=$(aws s3api get-bucket-versioning --bucket "$STATE_BUCKET" --query 'Status' --output text 2>/dev/null || echo "None")
+            echo "  Versioning: $VERSIONING"
+            
+            # Check bucket encryption
+            ENCRYPTION=$(aws s3api get-bucket-encryption --bucket "$STATE_BUCKET" --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' --output text 2>/dev/null || echo "None")
+            echo "  Encryption: $ENCRYPTION"
+            
+          else
+            echo "  State bucket does not exist or is not accessible"
+            
+            if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "staging" ]; then
+              echo "  This is expected for ${{ inputs.environment }} environment"
+              echo "  Manual bootstrap required before Terraform operations"
+              echo "  See BOOTSTRAP_PROMPT.md for setup instructions"
+              
+              # Don't fail for expected missing bootstrap
+              echo "  Marking as expected (manual bootstrap required)"
+            else
+              echo "  Unexpected missing state bucket for ${{ inputs.environment }}"
+              exit 1
+            fi
+          fi
+      
+      - name: "Check DynamoDB Lock Table"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          LOCK_TABLE=$(grep 'lock_table' env.hcl | cut -d'"' -f2)
+          
+          echo "Checking DynamoDB lock table: $LOCK_TABLE"
+          
+          if aws dynamodb describe-table --table-name "$LOCK_TABLE" >/dev/null 2>&1; then
+            echo "  Lock table exists"
+            
+            # Check table status
+            TABLE_STATUS=$(aws dynamodb describe-table --table-name "$LOCK_TABLE" --query 'Table.TableStatus' --output text)
+            echo "  Table Status: $TABLE_STATUS"
+            
+            # Check for any stuck locks
+            LOCK_COUNT=$(aws dynamodb scan --table-name "$LOCK_TABLE" --select COUNT --query 'Count' --output text 2>/dev/null || echo "0")
+            echo "  Current Locks: $LOCK_COUNT"
+            
+            if [ "$LOCK_COUNT" -gt 0 ]; then
+              echo "  Warning: $LOCK_COUNT lock(s) currently held"
+              echo "  This may indicate stuck operations"
+            fi
+            
+          else
+            echo "  Lock table does not exist"
+            
+            if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "staging" ]; then
+              echo "  This is expected for ${{ inputs.environment }} environment"
+              echo "  Marking as expected (manual bootstrap required)"
+            else
+              echo "  Missing lock table for ${{ inputs.environment }}"
+              exit 1
+            fi
+          fi

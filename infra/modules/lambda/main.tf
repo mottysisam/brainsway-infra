@@ -4,7 +4,17 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = ">= 2.0"
+    }
   }
+}
+
+# Create a minimal placeholder ZIP file for import-first posture
+resource "local_file" "placeholder_zip" {
+  content_base64 = "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA=="  # Empty ZIP file
+  filename       = "${path.module}/runtime_placeholder.zip"
 }
 
 resource "aws_lambda_function" "this" {
@@ -20,12 +30,8 @@ resource "aws_lambda_function" "this" {
   tags          = try(each.value.tags, {})
   
   # Deployment source handling for import-first posture
-  # Provide explicit source if specified, otherwise use minimal placeholder
-  filename         = try(each.value.filename, "${path.module}/placeholder.zip")
-  s3_bucket        = try(each.value.s3_bucket, null)
-  s3_key           = try(each.value.s3_key, null)
-  s3_object_version = try(each.value.s3_object_version, null)
-  image_uri        = try(each.value.image_uri, null)
+  # Always use filename for import-first approach with placeholder
+  filename = try(each.value.filename, local_file.placeholder_zip.filename)
   
   # Import posture: code package unmanaged here
   lifecycle { ignore_changes = all }

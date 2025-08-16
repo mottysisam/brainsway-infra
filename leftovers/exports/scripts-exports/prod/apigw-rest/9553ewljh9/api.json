@@ -1,0 +1,15 @@
+{
+    "id": "9553ewljh9",
+    "name": "S3 URL",
+    "description": "to get presigned URL for S3",
+    "createdDate": "2017-09-10T10:27:09+03:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "EDGE"
+        ]
+    },
+    "tags": {},
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "x5yrnvrzea"
+}

@@ -1,0 +1,4 @@
+{
+    "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"default\",\"Statement\":[{\"Sid\":\"fd39eabd87273c5fbe00df0854937375\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"apigateway.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"arn:aws:lambda:us-east-2:154948530138:function:generatePresignedUrl\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"arn:aws:execute-api:us-east-2:154948530138:9553ewljh9/*/GET/s3url\"}}}]}",
+    "RevisionId": "1d0c4763-840c-4c70-b9c5-fa6c6ab92d52"
+}

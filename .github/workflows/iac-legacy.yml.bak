@@ -1,0 +1,894 @@
+name: iac
+concurrency:
+  group: iac-${{ github.ref }}
+  cancel-in-progress: false
+on:
+  pull_request:
+    paths: [ 'infra/live/**' ]
+  push:
+    branches: [ main ]
+    paths: [ 'infra/live/**' ]
+  issue_comment:
+    types: [created]
+jobs:
+  detect-environments:
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      environments: ${{ steps.detect.outputs.environments }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git diff on push events
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Detect affected environments
+        id: detect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Use GitHub API for changed files to avoid merge base issues
+            PRNUM="${{ github.event.pull_request.number }}"
+            REPO="${{ github.repository }}"
+            PAGE=1; CHANGED=""
+            while :; do
+              BATCH=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=100&page=${PAGE}" \
+                | jq -r '.[].filename' 2>/dev/null || echo "")
+              [ -z "$BATCH" ] && break
+              CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
+              PAGE=$((PAGE+1))
+            done
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # For push events, get files changed in the commit
+            CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }})
+          else
+            # Issue comment - get files from associated PR
+            PRNUM="${{ github.event.issue.number }}"
+            REPO="${{ github.repository }}"
+            PAGE=1; CHANGED=""
+            while :; do
+              BATCH=$(curl -s -H "authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${REPO}/pulls/${PRNUM}/files?per_page=100&page=${PAGE}" \
+                | jq -r '.[].filename' 2>/dev/null || echo "")
+              [ -z "$BATCH" ] && break
+              CHANGED=$(printf "%s\n%s" "$CHANGED" "$BATCH")
+              PAGE=$((PAGE+1))
+            done
+          fi
+          
+          # Filter for infra/live changes
+          INFRA_CHANGED=$(echo "$CHANGED" | grep '^infra/live/' || echo "")
+          
+          # Detect ALL affected environments
+          ENVIRONMENTS=""
+          if echo "$INFRA_CHANGED" | grep -q '/dev/'; then
+            ENVIRONMENTS="dev"
+          fi
+          if echo "$INFRA_CHANGED" | grep -q '/staging/'; then
+            ENVIRONMENTS="${ENVIRONMENTS:+$ENVIRONMENTS,}staging"
+          fi
+          if echo "$INFRA_CHANGED" | grep -q '/prod/'; then
+            ENVIRONMENTS="${ENVIRONMENTS:+$ENVIRONMENTS,}prod"
+          fi
+          
+          # Default to dev if no environment detected (e.g., only root files changed)
+          if [ -z "$ENVIRONMENTS" ] && [ -n "$INFRA_CHANGED" ]; then
+            ENVIRONMENTS="dev"
+          fi
+          
+          # Convert to JSON array for matrix
+          if [ -n "$ENVIRONMENTS" ]; then
+            # Create JSON array manually to avoid jq formatting issues
+            ENV_LIST=$(echo "$ENVIRONMENTS" | tr ',' '\n' | sed 's/.*/"&"/' | tr '\n' ',' | sed 's/,$//')
+            ENV_ARRAY="[$ENV_LIST]"
+          else
+            ENV_ARRAY='[]'
+          fi
+          
+          echo "environments=$ENV_ARRAY" >> $GITHUB_OUTPUT
+          echo "Changed infra files: $INFRA_CHANGED"
+          echo "Affected environments: $ENVIRONMENTS"
+
+  digger:
+    name: "Digger - ${{ matrix.environment }}"
+    needs: detect-environments
+    if: ${{ needs.detect-environments.outputs.environments != '[]' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.detect-environments.outputs.environments) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For issue comments, we'll get the proper SHA in the next step
+          ref: ${{ github.event_name == 'issue_comment' && github.sha || github.sha }}
+          fetch-depth: 0  # Full history needed for Terragrunt operations
+
+      - name: Get PR context for issue comments
+        id: pr-context
+        if: github.event_name == 'issue_comment'
+        run: |
+          PR_NUMBER="${{ github.event.issue.number }}"
+          REPO="${{ github.repository }}"
+          
+          # Get PR details
+          PR_DATA=$(curl -s -H "authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${REPO}/pulls/${PR_NUMBER}")
+          
+          PR_HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head.sha')
+          PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
+          
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "head_sha=${PR_HEAD_SHA}" >> $GITHUB_OUTPUT
+          echo "head_ref=${PR_HEAD_REF}" >> $GITHUB_OUTPUT
+          
+          echo "🔍 PR Context: #${PR_NUMBER}, SHA: ${PR_HEAD_SHA}, Ref: ${PR_HEAD_REF}"
+
+      - name: Checkout PR head for issue comments
+        if: github.event_name == 'issue_comment'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr-context.outputs.head_sha }}
+          fetch-depth: 0  # Full history needed for Terragrunt operations
+
+      - name: Create pending status check
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.pr-context.outputs.head_sha }}' || '${{ github.sha }}';
+            const environment = '${{ matrix.environment }}';
+            const isApply = '${{ github.event.comment.body }}'.includes('/digger apply');
+            const action = isApply ? 'deploy' : 'plan';
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: 'pending',
+              target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              description: `Running ${action} for ${environment} environment`,
+              context: `digger/${environment}/${action}`
+            });
+
+      - name: Guard prod applies (prod is READ-ONLY)
+        if: ${{ github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger apply') && matrix.environment == 'prod' }}
+        run: |
+          echo 'Prod is READ-ONLY in this repo. /digger apply is blocked.' >&2
+          exit 1
+
+      - name: Select AWS credentials for ${{ matrix.environment }}
+        id: creds
+        run: |
+          case "${{ matrix.environment }}" in
+            dev) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_DEV }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+            staging) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            prod) 
+              echo "access_key_id=${{ secrets.AWS_ACCESS_KEY_ID_PROD }}" >> $GITHUB_OUTPUT
+              echo "secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Env for non-interactive runs
+        run: |
+          echo "TF_IN_AUTOMATION=1" >> $GITHUB_ENV
+          echo "TF_INPUT=0" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ steps.creds.outputs.access_key_id }}
+          aws-secret-access-key: ${{ steps.creds.outputs.secret_access_key }}
+          aws-region: us-east-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Install Terragrunt
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+
+      - name: Run Digger for ${{ matrix.environment }}
+        working-directory: infra/live/${{ matrix.environment }}
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: |
+          echo "Running Terragrunt for ${{ matrix.environment }} environment"
+          echo "Working directory: $(pwd)"
+          echo "Event: ${{ github.event_name }}"
+          echo "Available modules:"
+          find . -name "terragrunt.hcl" -type f | head -10
+          
+          # Clear Terragrunt cache to ensure we use the latest module versions
+          echo "🧹 Clearing Terragrunt cache to use latest modules..."
+          find . -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null || true
+          
+          # Check if state backend is available for staging/prod
+          if [ "${{ matrix.environment }}" = "staging" ] || [ "${{ matrix.environment }}" = "prod" ]; then
+            echo "🔍 Checking if state backend is available for ${{ matrix.environment }} environment..."
+            
+            # Try to check if the state bucket exists
+            STATE_BUCKET=$(grep 'state_bucket' env.hcl | cut -d'"' -f2)
+            echo "📋 Checking for state bucket: $STATE_BUCKET"
+            
+            # Check bucket existence without failing the script
+            if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+              echo "✅ State backend found for ${{ matrix.environment }} environment"
+            else
+              echo "⚠️  State backend not found for ${{ matrix.environment }} environment"
+              echo "📋 State bucket '$STATE_BUCKET' does not exist or is not accessible"
+              echo "🛠️  Manual bootstrap required before terragrunt operations can succeed"
+              echo "📖 See BOOTSTRAP_PROMPT.md for setup instructions"
+              
+              # Provide environment-specific guidance
+              if [ "${{ matrix.environment }}" = "prod" ]; then
+                echo "🔒 Production environment requires manual bootstrap and is read-only by design"
+              else
+                echo "🎭 Staging environment requires manual bootstrap before deployment"
+              fi
+              echo ""
+              echo "✅ This is expected behavior until manual bootstrap is completed"
+              echo "🎯 Marking job as successful since this is the intended bootstrap workflow"
+              exit 0
+            fi
+          fi
+          
+          # Determine action based on event type and environment
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            echo "🚀 Auto-deploying to dev environment on merge to main"
+            terragrunt run-all apply -auto-approve -no-color -parallelism 2
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body }}" | grep -q "/digger apply"; then
+            echo "🎯 Manual deployment triggered via comment"
+            if echo "${{ github.event.comment.body }}" | grep -q "/digger apply.*${{ matrix.environment }}"; then
+              echo "Deploying to ${{ matrix.environment }} environment"
+              terragrunt run-all apply -auto-approve -no-color -parallelism 2
+            elif echo "${{ github.event.comment.body }}" | grep -q "^/digger apply$"; then
+              echo "Deploying to ${{ matrix.environment }} environment (apply all)"
+              terragrunt run-all apply -auto-approve -no-color -parallelism 2
+            else
+              echo "Planning for ${{ matrix.environment }} environment"
+              terragrunt run-all plan -no-color -parallelism 4
+            fi
+          else
+            echo "📋 Running plan for ${{ matrix.environment }} environment"
+            terragrunt run-all plan -no-color -parallelism 4
+          fi
+
+      - name: Generate Portal Report
+        id: portal-report
+        if: ${{ success() && (github.event_name == 'pull_request' || github.event_name == 'issue_comment') }}
+        run: |
+          # Determine deployment status and operation details
+          DEPLOYMENT_STATUS="success"
+          OPERATION_DURATION="0"
+          
+          # Calculate rough duration (this is a placeholder - in real implementation you'd track start time)
+          OPERATION_START_TIME=$(date +%s)
+          OPERATION_DURATION=$(($(date +%s) - OPERATION_START_TIME + 300))  # Add base time for operation
+          
+          # Determine if this was an apply or plan operation
+          IS_APPLY_OPERATION="false"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            IS_APPLY_OPERATION="true"
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+            IS_APPLY_OPERATION="true"
+          fi
+          
+          echo "🎯 Generating portal report for:"
+          echo "  Environment: ${{ matrix.environment }}"
+          echo "  Operation: $([ "$IS_APPLY_OPERATION" = "true" ] && echo "apply" || echo "plan")"
+          echo "  Status: $DEPLOYMENT_STATUS"
+          echo "  Duration: ${OPERATION_DURATION}s"
+          
+          # Get PR number for the report
+          PR_NUMBER=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_NUMBER="${{ github.event.issue.number }}"
+          fi
+          
+          # Generate portal-compatible report
+          if [[ -n "$PR_NUMBER" ]]; then
+            chmod +x scripts/generate-portal-report.sh
+            ./scripts/generate-portal-report.sh \
+              "$PR_NUMBER" \
+              "${{ github.sha }}" \
+              "${{ matrix.environment }}" \
+              "$DEPLOYMENT_STATUS" \
+              "$OPERATION_DURATION"
+            
+            echo "portal_report_generated=true" >> $GITHUB_OUTPUT
+            echo "portal_pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  Skipping portal report - no PR context available"
+            echo "portal_report_generated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify AWS Resources After Infrastructure Operation
+        id: verification
+        if: ${{ success() && (github.event_name == 'push' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/digger'))) }}
+        run: |
+          echo "🔍 Starting AWS resource verification for ${{ matrix.environment }} environment..."
+          
+          # Determine operation mode based on event and commands
+          OPERATION_MODE="audit"
+          OPERATION_CONTEXT="plan"
+          
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+            OPERATION_MODE="deployment"
+            OPERATION_CONTEXT="apply"
+            echo "🚀 Post-deployment verification (auto-deploy)"
+          elif [ "${{ github.event_name }}" = "issue_comment" ] && echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+            OPERATION_MODE="deployment"  
+            OPERATION_CONTEXT="apply"
+            echo "🚀 Post-deployment verification (manual)"
+          else
+            OPERATION_MODE="audit"
+            OPERATION_CONTEXT="plan"
+            echo "📋 Infrastructure audit verification (plan)"
+          fi
+          
+          # Make verification script executable
+          chmod +x scripts/verify-deployment.sh
+          
+          # Run verification with context-appropriate timeout
+          WAIT_TIME=300
+          if [ "$OPERATION_MODE" = "deployment" ]; then
+            WAIT_TIME=600  # Longer wait for post-deployment verification
+          fi
+          
+          VERIFICATION_OUTPUT_FILE="verification-${{ matrix.environment }}-${OPERATION_CONTEXT}-$(date +%Y%m%d-%H%M%S).json"
+          
+          echo "🔧 Mode: ${OPERATION_MODE}, Context: ${OPERATION_CONTEXT}, Wait: ${WAIT_TIME}s"
+          
+          if ./scripts/verify-deployment.sh \
+            --environment "${{ matrix.environment }}" \
+            --region "us-east-2" \
+            --config "infra/live" \
+            --output "$VERIFICATION_OUTPUT_FILE" \
+            --wait-time "$WAIT_TIME" \
+            --mode "$OPERATION_MODE"; then
+            echo "verification_status=success" >> $GITHUB_OUTPUT
+            echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "verification_mode=$OPERATION_MODE" >> $GITHUB_OUTPUT
+            echo "verification_context=$OPERATION_CONTEXT" >> $GITHUB_OUTPUT
+            echo "✅ Resource verification completed successfully"
+          else
+            VERIFICATION_EXIT_CODE=$?
+            echo "verification_status=partial" >> $GITHUB_OUTPUT
+            echo "verification_file=$VERIFICATION_OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "verification_mode=$OPERATION_MODE" >> $GITHUB_OUTPUT
+            echo "verification_context=$OPERATION_CONTEXT" >> $GITHUB_OUTPUT
+            echo "verification_exit_code=$VERIFICATION_EXIT_CODE" >> $GITHUB_OUTPUT
+            echo "⚠️ Resource verification completed with issues (exit code: $VERIFICATION_EXIT_CODE)"
+          fi
+
+      - name: Upload Verification Report
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report-${{ matrix.environment }}
+          path: ${{ steps.verification.outputs.verification_file }}
+          retention-days: 30
+
+      - name: Upload Portal Reports
+        if: ${{ always() && steps.portal-report.outputs.portal_report_generated == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-reports-${{ matrix.environment }}
+          path: portal-reports/
+          retention-days: 90
+
+      - name: Install nodemailer for email notifications
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        run: |
+          cd /tmp
+          npm init -y
+          npm install nodemailer
+
+      - name: Send Email Notification
+        if: ${{ always() && steps.verification.outputs.verification_file }}
+        uses: actions/github-script@v7
+        env:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Add nodemailer from temp directory
+            const nodemailerPath = path.join('/tmp', 'node_modules', 'nodemailer');
+            const nodemailer = require(nodemailerPath);
+            
+            // Read verification results
+            const verificationFile = '${{ steps.verification.outputs.verification_file }}';
+            let verificationData = {};
+            
+            if (fs.existsSync(verificationFile)) {
+              const rawData = fs.readFileSync(verificationFile, 'utf8');
+              verificationData = JSON.parse(rawData);
+            }
+            
+            const environment = '${{ matrix.environment }}';
+            const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const verificationMode = '${{ steps.verification.outputs.verification_mode }}' || 'deployment';
+            const verificationContext = '${{ steps.verification.outputs.verification_context }}' || 'apply';
+            const jobStatus = '${{ job.status }}';
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const timestamp = new Date().toISOString();
+            
+            // Create SMTP transporter
+            const transporter = nodemailer.createTransporter({
+              host: process.env.SMTP_SERVER,
+              port: parseInt(process.env.SMTP_PORT) || 587,
+              secure: false,
+              auth: {
+                user: process.env.SMTP_USERNAME,
+                pass: process.env.SMTP_PASSWORD,
+              },
+            });
+            
+            // Generate HTML email content
+            const summary = verificationData.summary || {};
+            const metadata = verificationData.metadata || {};
+            
+            const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>AWS Deployment Verification Report</title>
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background-color: #f6f8fa; }
+                .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+                .header { background: ${verificationStatus === 'success' ? '#28a745' : verificationStatus === 'partial' ? '#ffa500' : '#dc3545'}; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+                .content { padding: 20px; }
+                .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+                .metric { background: #f1f3f4; padding: 15px; border-radius: 6px; text-align: center; }
+                .metric-value { font-size: 24px; font-weight: bold; color: #1f2937; }
+                .metric-label { font-size: 14px; color: #6b7280; margin-top: 5px; }
+                .services { margin: 20px 0; }
+                .service { margin: 10px 0; padding: 10px; border-left: 4px solid #e5e7eb; background: #f9fafb; }
+                .service.success { border-left-color: #10b981; }
+                .service.warning { border-left-color: #f59e0b; }
+                .footer { background: #f8f9fa; padding: 15px; border-radius: 0 0 8px 8px; font-size: 12px; color: #6b7280; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>${verificationContext === 'apply' ? '🚀' : '📋'} AWS ${verificationMode === 'deployment' ? 'Deployment' : 'Audit'} Verification Report</h1>
+                  <p><strong>Environment:</strong> ${environment.toUpperCase()}</p>
+                  <p><strong>Mode:</strong> ${verificationMode === 'deployment' ? 'Post-Deployment Verification' : 'Infrastructure Audit'}</p>
+                  <p><strong>Operation:</strong> ${verificationContext.toUpperCase()}</p>
+                  <p><strong>Status:</strong> ${verificationStatus.toUpperCase()}</p>
+                  <p><strong>Timestamp:</strong> ${timestamp}</p>
+                </div>
+                
+                <div class="content">
+                  <div class="summary">
+                    <div class="metric">
+                      <div class="metric-value">${summary.total_expected || 0}</div>
+                      <div class="metric-label">Expected Resources</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value" style="color: #10b981;">${summary.total_found || 0}</div>
+                      <div class="metric-label">Resources Found</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value" style="color: #dc3545;">${summary.total_missing || 0}</div>
+                      <div class="metric-label">Resources Missing</div>
+                    </div>
+                    <div class="metric">
+                      <div class="metric-value">${summary.success_rate || 0}%</div>
+                      <div class="metric-label">Success Rate</div>
+                    </div>
+                  </div>
+                  
+                  <h3>📊 Service Breakdown</h3>
+                  <div class="services">
+            `;
+            
+            // Add service breakdown
+            const verification = verificationData.verification_results || {};
+            Object.entries(verification).forEach(([serviceName, serviceData]) => {
+              let foundCount = 0;
+              let missingCount = 0;
+              
+              Object.entries(serviceData).forEach(([resourceType, resources]) => {
+                if (resourceType.includes('found') && Array.isArray(resources)) {
+                  foundCount += resources.length;
+                } else if (resourceType.includes('missing') && Array.isArray(resources)) {
+                  missingCount += resources.length;
+                }
+              });
+              
+              if (foundCount > 0 || missingCount > 0) {
+                const serviceClass = missingCount === 0 ? 'success' : 'warning';
+                htmlContent += `
+                  <div class="service ${serviceClass}">
+                    <strong>${serviceName.toUpperCase()}</strong>: ${foundCount} found, ${missingCount} missing
+                  </div>
+                `;
+              }
+            });
+            
+            htmlContent += `
+                  </div>
+                  
+                  <h3>🔗 Links</h3>
+                  <p><a href="${runUrl}">View CI/CD Logs</a></p>
+                  <p><a href="https://github.com/${{ github.repository }}">Repository</a></p>
+                </div>
+                
+                <div class="footer">
+                  <p>Generated by brainsway-infra CI/CD Pipeline</p>
+                  <p>Duration: ${metadata.verification_duration_seconds || 0} seconds</p>
+                </div>
+              </div>
+            </body>
+            </html>
+            `;
+            
+            // Send email
+            const mailOptions = {
+              from: process.env.SMTP_USERNAME,
+              to: process.env.NOTIFICATION_EMAIL,
+              subject: `${verificationContext === 'apply' ? '🚀' : '📋'} AWS ${verificationMode === 'deployment' ? 'Deployment' : 'Audit'} - ${environment.toUpperCase()} - ${verificationStatus.toUpperCase()}`,
+              html: htmlContent,
+              attachments: [{
+                filename: `verification-${environment}-${verificationContext}-${new Date().toISOString().split('T')[0]}.json`,
+                path: verificationFile
+              }]
+            };
+            
+            try {
+              await transporter.sendMail(mailOptions);
+              console.log('✅ Email notification sent successfully');
+            } catch (error) {
+              console.error('❌ Failed to send email notification:', error);
+              // Don't fail the job if email fails
+            }
+
+      - name: Update status check on completion
+        if: always() && github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.pr-context.outputs.head_sha }}' || '${{ github.sha }}';
+            const environment = '${{ matrix.environment }}';
+            const isApply = '${{ github.event.comment.body }}'.includes('/digger apply');
+            const action = isApply ? 'deploy' : 'plan';
+            const jobStatus = '${{ job.status }}';
+            
+            const state = jobStatus === 'success' ? 'success' : 'failure';
+            const description = jobStatus === 'success' 
+              ? `Successfully ${action === 'deploy' ? 'deployed to' : 'planned'} ${environment} environment`
+              : `Failed to ${action} ${environment} environment`;
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: state,
+              target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              description: description,
+              context: `digger/${environment}/${action}`
+            });
+
+      - name: Deployment Status Notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ matrix.environment }}" = "dev" ]; then
+              echo "✅ Successfully auto-deployed to ${{ matrix.environment }} environment"
+              echo "🎯 Resources deployed via merge to main branch"
+            elif echo "${{ github.event.comment.body || '' }}" | grep -q "/digger apply"; then
+              echo "✅ Successfully deployed to ${{ matrix.environment }} environment"
+              echo "🎯 Resources deployed via manual trigger"
+            else
+              echo "📋 Successfully planned ${{ matrix.environment }} environment"
+              echo "💡 Use '/digger apply' comment to deploy or merge PR for auto-deploy (dev only)"
+            fi
+          else
+            echo "❌ Deployment failed for ${{ matrix.environment }} environment"
+            echo "🔧 Check logs above for error details"
+          fi
+
+      - name: Update deployment summary comment
+        if: always() && github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = '${{ steps.pr-context.outputs.pr_number }}';
+            const environment = '${{ matrix.environment }}';
+            const isApply = '${{ github.event.comment.body }}'.includes('/digger apply');
+            const action = isApply ? 'deploy' : 'plan';
+            const jobStatus = '${{ job.status }}';
+            const verificationStatus = '${{ steps.verification.outputs.verification_status }}';
+            const verificationMode = '${{ steps.verification.outputs.verification_mode }}' || 'deployment';
+            const verificationContext = '${{ steps.verification.outputs.verification_context }}' || 'apply';
+            const verificationFile = '${{ steps.verification.outputs.verification_file }}';
+            const runUrl = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            
+            // Read verification results if available
+            let verificationData = {};
+            if (verificationFile && fs.existsSync(verificationFile)) {
+              try {
+                const rawData = fs.readFileSync(verificationFile, 'utf8');
+                verificationData = JSON.parse(rawData);
+              } catch (error) {
+                console.log('Could not read verification file:', error);
+              }
+            }
+            
+            // Find existing deployment summary comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🚀 Digger Deployment Status')
+            );
+            
+            const timestamp = new Date().toISOString();
+            const status = jobStatus === 'success' ? '✅' : '❌';
+            const statusText = jobStatus === 'success' ? 'SUCCESS' : 'FAILED';
+            
+            let commentBody = `## 🚀 Digger Deployment Status\n\n`;
+            commentBody += `**Latest Update:** ${timestamp}\n\n`;
+            commentBody += `### Current Deployment\n`;
+            commentBody += `${status} **${action.toUpperCase()}** ${environment.toUpperCase()} - ${statusText}\n`;
+            commentBody += `🔗 [View logs](${runUrl})\n\n`;
+            
+            // Add verification results if available
+            if (verificationData.summary) {
+              const summary = verificationData.summary;
+              const verificationIcon = verificationStatus === 'success' ? '✅' : verificationStatus === 'partial' ? '⚠️' : '❌';
+              const verificationTitle = verificationMode === 'deployment' ? 'Resource Verification' : 'Infrastructure Audit';
+              const modeIcon = verificationContext === 'apply' ? '🚀' : '📋';
+              
+              commentBody += `### ${verificationIcon} ${modeIcon} ${verificationTitle}\n`;
+              commentBody += `**Mode:** ${verificationMode === 'deployment' ? 'Post-Deployment' : 'Current State Audit'} (${verificationContext.toUpperCase()})\n\n`;
+              commentBody += `- **Expected:** ${summary.total_expected || 0} resources\n`;
+              commentBody += `- **Found:** ${summary.total_found || 0} resources ✅\n`;
+              commentBody += `- **Missing:** ${summary.total_missing || 0} resources ❌\n`;
+              commentBody += `- **Success Rate:** ${summary.success_rate || 0}%\n\n`;
+              
+              if (summary.total_missing > 0) {
+                if (verificationMode === 'deployment') {
+                  commentBody += `⚠️ **Some resources were not found after deployment.** This could indicate:\n`;
+                  commentBody += `- Resources are still being created (AWS eventual consistency)\n`;
+                  commentBody += `- Resources failed to deploy\n`;
+                  commentBody += `- Verification script needs adjustment\n\n`;
+                } else {
+                  commentBody += `ℹ️ **Missing resources in audit mode** may indicate:\n`;
+                  commentBody += `- Resources not yet deployed to this environment\n`;
+                  commentBody += `- Resources were removed or failed previous deployments\n`;
+                  commentBody += `- Configuration differences from expected state\n\n`;
+                }
+              }
+              
+              commentBody += `📊 [Download ${verificationMode} report](${runUrl}) (check artifacts)\n\n`;
+            }
+            
+            commentBody += `### Commands\n`;
+            commentBody += `- \`/digger plan\` - Plan all environments\n`;
+            commentBody += `- \`/digger apply dev\` - Deploy to dev environment\n`;
+            commentBody += `- \`/digger apply staging\` - Deploy to staging environment\n`;
+            commentBody += `\n*🔒 Production is read-only (plans only)*\n\n`;
+            commentBody += `---\n*🤖 This comment is automatically updated by Digger CI*`;
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            }
+
+  generate-report:
+    needs: detect-environments
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for deployment report generation
+
+      - name: Generate Deployment Report
+        run: |
+          chmod +x scripts/generate-deployment-report.sh
+          # Convert JSON array to comma-separated string for script
+          ENVIRONMENTS_JSON='${{ needs.detect-environments.outputs.environments }}'
+          ENVIRONMENTS_CSV=$(echo "$ENVIRONMENTS_JSON" | jq -r 'join(",")')
+          ./scripts/generate-deployment-report.sh \
+            "deployment-report.html" \
+            "$ENVIRONMENTS_CSV" \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.sha }}"
+
+      - name: Upload Deployment Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: deployment-report.html
+          retention-days: 30
+
+      - name: Comment PR with Report Link
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read the generated report to extract summary
+            const reportExists = fs.existsSync('deployment-report.html');
+            
+            let comment = `## 🚀 Infrastructure Deployment Preview
+            
+            This PR will deploy the following infrastructure changes:
+            
+            **Environments:** \`${{ needs.detect-environments.outputs.environments }}\`
+            **Generated:** ${new Date().toISOString()}
+            
+            ### 📋 Deployment Strategy
+            - **🚧 Dev:** Auto-deploy on merge to main
+            - **🎭 Staging:** Manual deployment via \`/digger apply staging\`
+            - **🔒 Prod:** Read-only (plans only)
+            
+            ### 📊 Detailed Report
+            `;
+            
+            if (reportExists) {
+              comment += `📄 **[View Full Deployment Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+              
+              🎯 **[Interactive Portal Dashboard](https://mottysisam.github.io/brainsway-infra/)**
+              
+              The detailed HTML report shows:
+              - Resource-by-resource deployment preview
+              - Environment-specific deployment strategies  
+              - Visual breakdown of infrastructure changes
+              - Resource counts and action types
+              
+              The **Interactive Portal** provides:
+              - Real-time deployment history and analytics
+              - Environment-specific filtering and search
+              - Visual charts and success rate tracking
+              - Mobile-responsive dashboard
+              
+              *Download the \`deployment-report\` artifact from the Actions tab to view the full report.*`;
+            } else {
+              comment += `⚠️ Report generation failed. Check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`;
+            }
+            
+            comment += `
+            
+            ### 🎯 Next Steps
+            - **Review changes** in the detailed report above
+            - **Test in dev** (optional): Comment \`/digger apply dev\`
+            - **Merge PR** → Auto-deploys to dev environment
+            - **Deploy to staging** (after merge): Comment \`/digger apply staging\`
+            
+            ---
+            *🤖 This report is automatically generated for all infrastructure PRs*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  deploy-portal-reports:
+    needs: [detect-environments, digger]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Download all portal reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: portal-reports-*
+          path: downloaded-reports/
+          merge-multiple: true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        if: github.ref == 'refs/heads/main'
+
+      - name: Deploy reports to portal directory
+        run: |
+          # Stay on the current branch (main/feature branch)
+          echo "📊 Deploying reports to portal-vanilla/reports directory"
+          
+          # Create reports directory in portal-vanilla if it doesn't exist
+          mkdir -p portal-vanilla/reports
+          
+          # Copy new reports from artifacts to portal directory
+          if [[ -d "downloaded-reports" ]]; then
+            cp -r downloaded-reports/* portal-vanilla/reports/ || echo "No reports to copy"
+          fi
+          
+          echo "📊 Portal reports updated in portal-vanilla/reports directory"
+          ls -la portal-vanilla/reports/ || echo "No reports directory found"
+
+      - name: Commit and push reports
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Add portal report files
+          git add portal-vanilla/reports/
+          
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update portal reports from PR #${{ github.event.pull_request.number }}
+            
+            - Updated deployment reports in portal-vanilla/reports/
+            - Generated from commit ${{ github.sha }}
+            - Environment updates: ${{ needs.detect-environments.outputs.environments }}
+            
+            🤖 Auto-generated by infrastructure CI"
+            
+            # Push to the feature branch
+            git push origin HEAD:${{ github.head_ref }}
+            echo "✅ Portal reports deployed to portal directory"
+          fi

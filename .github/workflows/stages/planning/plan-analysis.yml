@@ -1,0 +1,226 @@
+name: Plan Analysis
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      plan_artifact_name:
+        required: true
+        type: string
+
+jobs:
+  plan-analysis:
+    name: "Plan Analysis - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+      
+      - name: "Download Plan Output"
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.plan_artifact_name }}
+          path: plan-output/
+      
+      - name: "Deep Plan Analysis"
+        run: |
+          echo "Performing deep analysis of Terragrunt plan..."
+          
+          # Find the plan file
+          PLAN_FILE=$(find plan-output -name "*.txt" | head -1)
+          
+          if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
+            echo "Plan file not found"
+            exit 1
+          fi
+          
+          echo "Analyzing: $PLAN_FILE"
+          echo ""
+          
+          # File statistics
+          TOTAL_LINES=$(wc -l < "$PLAN_FILE")
+          echo "Plan file statistics:"
+          echo "  Total lines: $TOTAL_LINES"
+          echo ""
+          
+          # Resource analysis
+          echo "Resource Analysis:"
+          
+          # Count different types of changes
+          CREATE_COUNT=$(grep -c "will be created" "$PLAN_FILE" 2>/dev/null || echo "0")
+          UPDATE_COUNT=$(grep -c "will be updated in-place" "$PLAN_FILE" 2>/dev/null || echo "0")
+          REPLACE_COUNT=$(grep -c "must be replaced" "$PLAN_FILE" 2>/dev/null || echo "0")
+          DELETE_COUNT=$(grep -c "will be destroyed" "$PLAN_FILE" 2>/dev/null || echo "0")
+          
+          echo "  Resource Changes:"
+          echo "    Create: $CREATE_COUNT"
+          echo "    Update: $UPDATE_COUNT"
+          echo "    Replace: $REPLACE_COUNT"
+          echo "    Delete: $DELETE_COUNT"
+          echo ""
+          
+          # Analyze by resource type
+          echo "  Resource Types:"
+          grep -E "# (aws_[a-z_]+)\." "$PLAN_FILE" 2>/dev/null | \
+            sed 's/.*# \(aws_[a-z_]*\)\..*/\1/' | \
+            sort | uniq -c | sort -nr | head -10 | \
+            while read count type; do
+              echo "    $type: $count"
+            done
+          echo ""
+          
+          # Look for sensitive operations
+          echo "Sensitive Operations Check:"
+          
+          if grep -q "aws_lambda_function.*will be created" "$PLAN_FILE"; then
+            echo "  New Lambda functions will be created"
+            grep "aws_lambda_function.*will be created" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          if grep -q "aws_s3_bucket.*will be destroyed" "$PLAN_FILE"; then
+            echo "  S3 buckets will be destroyed!"
+            grep "aws_s3_bucket.*will be destroyed" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          if grep -q "aws_db_instance.*will be destroyed" "$PLAN_FILE"; then
+            echo "  Database instances will be destroyed!"
+            grep "aws_db_instance.*will be destroyed" "$PLAN_FILE" | sed 's/^/    /'
+          fi
+          
+          if grep -q "force-recreate\|must be replaced" "$PLAN_FILE"; then
+            echo "  Resources will be force-recreated"
+            grep -B1 -A1 "force-recreate\|must be replaced" "$PLAN_FILE" | head -10 | sed 's/^/    /'
+          fi
+          
+          echo ""
+      
+      - name: "Security Analysis"
+        run: |
+          echo "Security Analysis:"
+          
+          PLAN_FILE=$(find plan-output -name "*.txt" | head -1)
+          
+          # Check for security-sensitive changes
+          echo "Checking for security-sensitive changes..."
+          
+          # IAM changes
+          if grep -q "aws_iam" "$PLAN_FILE"; then
+            echo "  IAM changes detected"
+            IAM_CHANGES=$(grep -c "aws_iam" "$PLAN_FILE")
+            echo "    Total IAM changes: $IAM_CHANGES"
+            
+            if grep -q "aws_iam.*policy" "$PLAN_FILE"; then
+              echo "    IAM policy changes detected"
+            fi
+            
+            if grep -q "aws_iam.*role" "$PLAN_FILE"; then
+              echo "    IAM role changes detected"
+            fi
+          fi
+          
+          # Security Group changes
+          if grep -q "aws_security_group" "$PLAN_FILE"; then
+            echo "  Security Group changes detected"
+            SG_CHANGES=$(grep -c "aws_security_group" "$PLAN_FILE")
+            echo "    Total Security Group changes: $SG_CHANGES"
+            
+            # Check for wide-open rules
+            if grep -q "0.0.0.0/0\|::./0" "$PLAN_FILE"; then
+              echo "    Wide-open security rules detected (0.0.0.0/0)"
+            fi
+          fi
+          
+          # VPC changes
+          if grep -q "aws_vpc\|aws_subnet\|aws_route" "$PLAN_FILE"; then
+            echo "  Network changes detected"
+            NET_CHANGES=$(grep -c "aws_vpc\|aws_subnet\|aws_route" "$PLAN_FILE")
+            echo "    Total network changes: $NET_CHANGES"
+          fi
+          
+          echo ""
+      
+      - name: "Cost Impact Analysis"
+        run: |
+          echo "Cost Impact Analysis:"
+          
+          PLAN_FILE=$(find plan-output -name "*.txt" | head -1)
+          
+          # Estimate cost impact based on resource types
+          echo "Estimating cost impact..."
+          
+          # High-cost resources
+          HIGH_COST_RESOURCES="aws_rds_instance aws_elasticache aws_elasticsearch_domain aws_redshift_cluster"
+          MEDIUM_COST_RESOURCES="aws_instance aws_lambda_function aws_api_gateway"
+          LOW_COST_RESOURCES="aws_s3_bucket aws_iam_role aws_security_group"
+          
+          HIGH_COST_COUNT=0
+          MEDIUM_COST_COUNT=0
+          LOW_COST_COUNT=0
+          
+          for resource in $HIGH_COST_RESOURCES; do
+            count=$(grep -c "$resource.*will be created" "$PLAN_FILE" 2>/dev/null || echo "0")
+            HIGH_COST_COUNT=$((HIGH_COST_COUNT + count))
+          done
+          
+          for resource in $MEDIUM_COST_RESOURCES; do
+            count=$(grep -c "$resource.*will be created" "$PLAN_FILE" 2>/dev/null || echo "0")
+            MEDIUM_COST_COUNT=$((MEDIUM_COST_COUNT + count))
+          done
+          
+          for resource in $LOW_COST_RESOURCES; do
+            count=$(grep -c "$resource.*will be created" "$PLAN_FILE" 2>/dev/null || echo "0")
+            LOW_COST_COUNT=$((LOW_COST_COUNT + count))
+          done
+          
+          echo "  Cost Impact Estimate:"
+          echo "    High-cost resources: $HIGH_COST_COUNT"
+          echo "    Medium-cost resources: $MEDIUM_COST_COUNT"
+          echo "    Low-cost resources: $LOW_COST_COUNT"
+          
+          if [ $HIGH_COST_COUNT -gt 0 ]; then
+            echo "    High-cost resources detected - review before applying"
+          fi
+          
+          echo ""
+      
+      - name: "Generate Analysis Report"
+        run: |
+          echo "Generating detailed analysis report..."
+          
+          PLAN_FILE=$(find plan-output -name "*.txt" | head -1)
+          
+          cat > plan-analysis-${{ inputs.environment }}.json << EOF
+          {
+            "environment": "${{ inputs.environment }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "plan_file": "$(basename "$PLAN_FILE")",
+            "analysis": {
+              "total_lines": $(wc -l < "$PLAN_FILE"),
+              "resource_changes": {
+                "create": $(grep -c "will be created" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "update": $(grep -c "will be updated in-place" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "replace": $(grep -c "must be replaced" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "delete": $(grep -c "will be destroyed" "$PLAN_FILE" 2>/dev/null || echo "0")
+              },
+              "security_analysis": {
+                "iam_changes": $(grep -c "aws_iam" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "security_group_changes": $(grep -c "aws_security_group" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "network_changes": $(grep -c "aws_vpc\|aws_subnet\|aws_route" "$PLAN_FILE" 2>/dev/null || echo "0"),
+                "wide_open_rules": $(grep -c "0.0.0.0/0\|::./0" "$PLAN_FILE" 2>/dev/null || echo "0")
+              },
+              "risk_level": "$([ $(grep -c "will be destroyed\|must be replaced" "$PLAN_FILE" 2>/dev/null || echo "0") -gt 0 ] && echo "high" || echo "low")"
+            }
+          }
+          EOF
+          
+          echo "Analysis report generated: plan-analysis-${{ inputs.environment }}.json"
+      
+      - name: "Upload Analysis Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-analysis-${{ inputs.environment }}
+          path: plan-analysis-${{ inputs.environment }}.json
+          retention-days: 14

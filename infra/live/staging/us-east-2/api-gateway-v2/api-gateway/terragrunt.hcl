@@ -8,22 +8,26 @@ terraform {
 
 
 locals {
+  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+  environment = local.env_vars.locals.env
+  aws_account = local.env_vars.locals.aws_account
+  aws_region = local.env_vars.locals.aws_region
   
   # API configuration
-  api_name    = "brainsway-api-${"staging"}"
-  domain_name = "api.staging.brainsway.cloud"
+  api_name    = "brainsway-api-${local.environment}"
+  domain_name = "api.${local.environment}.brainsway.cloud"
 }
 
 # Dependencies
 dependencies {
-  paths = ["../acm", "../route53", "../lambda", "../internal-router"]
+  paths = ["../acm", "../route53", "../lambda"]
 }
 
 dependency "acm" {
   config_path = "../acm"
   
   mock_outputs = {
-    certificate_arn = "arn:aws:acm:us-east-2:574210586915:certificate/12345678-1234-1234-1234-123456789012"
+    certificate_arn = "arn:aws:acm:${local.aws_region}:${local.aws_account}:certificate/12345678-1234-1234-1234-123456789012"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -33,7 +37,7 @@ dependency "route53" {
   
   mock_outputs = {
     zone_id     = "Z1D633PJN98FT9"
-    domain_name = "staging.brainsway.cloud"
+    domain_name = "${local.environment}.brainsway.cloud"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -42,20 +46,20 @@ dependency "lambda" {
   config_path = "../lambda"
   
   mock_outputs = {
-    function_arn       = "arn:aws:lambda:us-east-2:574210586915:function:brainsway-api-router-staging"
-    function_name      = "brainsway-api-router-staging"
-    invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:574210586915:function:brainsway-api-router-staging/invocations"
+    function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-api-router"
+    function_name      = "brainsway-api-router"
+    invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-api-router/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
 
 dependency "internal_router" {
-  config_path = "../internal-router"
+  config_path = "../lambda"
   
   mock_outputs = {
-    function_arn       = "arn:aws:lambda:us-east-2:574210586915:function:brainsway-internal-router-staging"
-    function_name      = "brainsway-internal-router-staging"
-    invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:574210586915:function:brainsway-internal-router-staging/invocations"
+    internal_router_function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router"
+    internal_router_function_name      = "internal-router"
+    internal_router_invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -73,11 +77,11 @@ inputs = {
   certificate_arn = dependency.acm.outputs.certificate_arn
   zone_id         = dependency.route53.outputs.zone_id
   
-  # CORS configuration (more restrictive for staging)
+  # CORS configuration (environment-specific)
   enable_cors            = true
   cors_allow_origins     = [
-    "https://staging.brainsway.cloud",
-    "https://app-staging.brainsway.cloud"
+    "https://${local.environment}.brainsway.cloud",
+    "https://app-${local.environment}.brainsway.cloud"
   ]
   cors_allow_methods     = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"]
   cors_allow_headers     = ["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"]
@@ -101,7 +105,7 @@ inputs = {
   
   # Internal Router Configuration (secure Lambda-to-Lambda routing)
   enable_internal_router                     = true
-  internal_router_lambda_arn                 = dependency.internal_router.outputs.function_arn
+  internal_router_lambda_arn                 = dependency.internal_router.outputs.internal_router_function_arn
   internal_router_allow_unauthenticated_get  = true  # Staging environment - allows simple GET calls without auth
   
   # Internal Router Security (staging environment - moderate restrictions)
@@ -118,7 +122,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.api_name
-    Environment = "staging"
+    Environment = local.environment
     Domain      = local.domain_name
     Purpose     = "API Gateway"
     ManagedBy   = "Terragrunt"

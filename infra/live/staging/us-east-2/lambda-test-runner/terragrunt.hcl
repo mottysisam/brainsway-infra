@@ -30,8 +30,8 @@ inputs = {
         PYTHONPATH          = "/opt/python:/var/runtime:/var/lang/lib/python3.11/site-packages"
       }
       
-      # Use the packaged source code with dependencies
-      source_dir = "/Users/motty/code/brainsway-infra/infra/lambda-functions/lambda-test-runner/package"
+      # Import-first posture: deployment package managed outside Terraform
+      # The module will use placeholder ZIP for terraform operations
       
       tags = {
         Environment = local.environment

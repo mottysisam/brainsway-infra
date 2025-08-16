@@ -1,0 +1,46 @@
+{
+    "Table": {
+        "AttributeDefinitions": [
+            {
+                "AttributeName": "device_id",
+                "AttributeType": "S"
+            },
+            {
+                "AttributeName": "update_date",
+                "AttributeType": "S"
+            }
+        ],
+        "TableName": "sw_update",
+        "KeySchema": [
+            {
+                "AttributeName": "update_date",
+                "KeyType": "HASH"
+            },
+            {
+                "AttributeName": "device_id",
+                "KeyType": "RANGE"
+            }
+        ],
+        "TableStatus": "ACTIVE",
+        "CreationDateTime": "2018-02-12T09:12:52.339000+02:00",
+        "ProvisionedThroughput": {
+            "NumberOfDecreasesToday": 0,
+            "ReadCapacityUnits": 0,
+            "WriteCapacityUnits": 0
+        },
+        "TableSizeBytes": 1557751,
+        "ItemCount": 10158,
+        "TableArn": "arn:aws:dynamodb:us-east-2:154948530138:table/sw_update",
+        "TableId": "0ed5b023-eb96-4ec9-86dc-36619369e0cd",
+        "BillingModeSummary": {
+            "BillingMode": "PAY_PER_REQUEST",
+            "LastUpdateToPayPerRequestDateTime": "2019-09-02T09:44:24.074000+03:00"
+        },
+        "DeletionProtectionEnabled": false,
+        "WarmThroughput": {
+            "ReadUnitsPerSecond": 12000,
+            "WriteUnitsPerSecond": 4000,
+            "Status": "ACTIVE"
+        }
+    }
+}

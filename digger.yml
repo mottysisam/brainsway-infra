@@ -1,6 +1,8 @@
 version: 1
 collect_usage_data: false
 auto_merge: false
+# Global configuration for faster feedback loops
+skip_merge_check: true
 projects:
   - name: dev
     dir: infra/live/dev
@@ -8,18 +10,30 @@ projects:
     workflow: terragrunt-dev
     include_patterns:
       - "infra/live/dev/**"
+    # Development environment: Maximum flexibility, no PR locks
+    pr_locks: false
+    skip_merge_check: true
+    auto_merge: false
   - name: staging
     dir: infra/live/staging
     terragrunt: true
     workflow: terragrunt-staging
     include_patterns:
       - "infra/live/staging/**"
+    # Staging environment: Flexible but with minimal approval gate
+    pr_locks: false
+    skip_merge_check: true
+    auto_merge: false
   - name: prod
     dir: infra/live/prod
     terragrunt: true
     workflow: terragrunt-prod
     include_patterns:
       - "infra/live/prod/**"
+    # Production environment: Strict controls with PR locks enabled
+    pr_locks: true
+    skip_merge_check: false
+    auto_merge: false
 workflows:
   terragrunt-dev:
     plan:

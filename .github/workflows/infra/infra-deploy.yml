@@ -1,0 +1,86 @@
+name: Infrastructure Deployment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      changed_modules:
+        required: false
+        type: string
+        default: '{}'
+
+jobs:
+  # Stage 1: Pre-deployment checks and safety validations
+  pre-deploy-checks:
+    name: "Pre-Deploy Checks"
+    uses: ./.github/workflows/stages/deployment/pre-deploy-checks.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 2: Execute Terragrunt apply
+  terragrunt-apply:
+    name: "Terragrunt Apply"
+    needs: pre-deploy-checks
+    uses: ./.github/workflows/stages/deployment/terragrunt-apply.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 3: Post-deployment validation
+  post-deploy-validation:
+    name: "Post-Deploy Validation"
+    needs: terragrunt-apply
+    if: always() && needs.terragrunt-apply.result == 'success'
+    uses: ./.github/workflows/stages/deployment/post-deploy-validation.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Summary job to aggregate results
+  deployment-summary:
+    name: "Deployment Summary"
+    needs: [pre-deploy-checks, terragrunt-apply, post-deploy-validation]
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      deployment_status: ${{ steps.summary.outputs.deployment_status }}
+    
+    steps:
+      - name: "Generate Deployment Summary"
+        id: summary
+        run: |
+          echo "## Infrastructure Deployment Summary - ${{ inputs.environment }}"
+          echo ""
+          echo "**Environment:** ${{ inputs.environment }}"
+          echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "### Deployment Results:"
+          echo "- **Pre-Deploy Checks:** ${{ needs.pre-deploy-checks.result }}"
+          echo "- **Terragrunt Apply:** ${{ needs.terragrunt-apply.result }}"
+          echo "- **Post-Deploy Validation:** ${{ needs.post-deploy-validation.result }}"
+          echo ""
+          
+          # Determine overall status
+          if [ "${{ needs.pre-deploy-checks.result }}" = "success" ] && \
+             [ "${{ needs.terragrunt-apply.result }}" = "success" ] && \
+             [ "${{ needs.post-deploy-validation.result }}" = "success" ]; then
+            echo "### Overall Status: SUCCESSFUL"
+            echo "Deployment completed successfully with all validations passed."
+            echo "deployment_status=success" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.pre-deploy-checks.result }}" = "failure" ]; then
+            echo "### Overall Status: BLOCKED"
+            echo "Deployment was blocked by pre-deployment checks."
+            echo "deployment_status=blocked" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.terragrunt-apply.result }}" = "failure" ]; then
+            echo "### Overall Status: FAILED"
+            echo "Deployment failed during Terragrunt apply stage."
+            echo "deployment_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "### Overall Status: PARTIAL"
+            echo "Deployment completed but validation had issues."
+            echo "deployment_status=partial" >> $GITHUB_OUTPUT
+          fi

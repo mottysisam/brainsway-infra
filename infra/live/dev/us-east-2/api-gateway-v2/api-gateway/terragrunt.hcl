@@ -8,10 +8,14 @@ terraform {
 
 
 locals {
+  env_vars = read_terragrunt_config(find_in_parent_folders("env.hcl"))
+  environment = local.env_vars.locals.env
+  aws_account = local.env_vars.locals.aws_account
+  aws_region = local.env_vars.locals.aws_region
   
   # API configuration
-  api_name    = "brainsway-api-${"dev"}"
-  domain_name = "api.dev.brainsway.cloud"
+  api_name    = "brainsway-api-${local.environment}"
+  domain_name = "api.${local.environment}.brainsway.cloud"
 }
 
 # Dependencies
@@ -23,7 +27,7 @@ dependency "acm" {
   config_path = "../acm"
   
   mock_outputs = {
-    certificate_arn = "arn:aws:acm:us-east-2:824357028182:certificate/12345678-1234-1234-1234-123456789012"
+    certificate_arn = "arn:aws:acm:${local.aws_region}:${local.aws_account}:certificate/12345678-1234-1234-1234-123456789012"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -33,7 +37,7 @@ dependency "route53" {
   
   mock_outputs = {
     zone_id     = "Z1D633PJN98FT9"
-    domain_name = "dev.brainsway.cloud"
+    domain_name = "${local.environment}.brainsway.cloud"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -43,9 +47,9 @@ dependency "lambda" {
   config_path = "../lambda"
   
   mock_outputs = {
-    function_arn       = "arn:aws:lambda:us-east-2:824357028182:function:brainsway-api-router-dev"
-    function_name      = "brainsway-api-router-dev"
-    invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:824357028182:function:brainsway-api-router-dev/invocations"
+    function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-api-router"
+    function_name      = "brainsway-api-router"
+    invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:brainsway-api-router/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -55,9 +59,9 @@ dependency "internal_router" {
   config_path = "../internal-router"
   
   mock_outputs = {
-    function_arn       = "arn:aws:lambda:us-east-2:824357028182:function:internal-router"
+    function_arn       = "arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router"
     function_name      = "internal-router"
-    invoke_arn         = "arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:824357028182:function:internal-router/invocations"
+    invoke_arn         = "arn:aws:apigateway:${local.aws_region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${local.aws_region}:${local.aws_account}:function:internal-router/invocations"
   }
   mock_outputs_allowed_terraform_commands = ["init", "validate", "plan", "apply"]
 }
@@ -75,11 +79,11 @@ inputs = {
   certificate_arn = dependency.acm.outputs.certificate_arn
   zone_id         = dependency.route53.outputs.zone_id
   
-  # CORS configuration (more permissive for dev)
+  # CORS configuration (environment-specific)
   enable_cors            = true
   cors_allow_origins     = [
-    "https://dev.brainsway.cloud",
-    "https://app-dev.brainsway.cloud",
+    "https://${local.environment}.brainsway.cloud",
+    "https://app-${local.environment}.brainsway.cloud",
     "http://localhost:3000",
     "http://localhost:8080"
   ]
@@ -122,7 +126,7 @@ inputs = {
   # Tags
   tags = {
     Name        = local.api_name
-    Environment = "dev"
+    Environment = local.environment
     Domain      = local.domain_name
     Purpose     = "API Gateway"
     ManagedBy   = "Terragrunt"

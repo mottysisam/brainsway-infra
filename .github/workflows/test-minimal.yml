@@ -1,0 +1,12 @@
+name: Test Minimal Workflow
+
+on:
+  push:
+    branches: [feat/infrastructure-cleanup-enhancement]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: test_basic_execution
+        run: echo "Basic GitHub Actions execution works"

@@ -1,0 +1,15 @@
+{
+    "id": "pixwwabvy7",
+    "name": "S3 URL 2",
+    "description": "to get presigned URL for S3",
+    "createdDate": "2018-09-20T10:45:31+03:00",
+    "apiKeySource": "HEADER",
+    "endpointConfiguration": {
+        "types": [
+            "REGIONAL"
+        ]
+    },
+    "tags": {},
+    "disableExecuteApiEndpoint": false,
+    "rootResourceId": "x5yrnvrzea"
+}

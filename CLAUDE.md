@@ -10,8 +10,9 @@
 * PR‑driven CI/CD via **Digger on GitHub Actions**.
 * **Prod is read‑only**: *plan/import only*, no applies. Dev/Staging are writable via PR gates.
 
-## Canonical environments
+IMPORTANT: Start each message with MESSAGE-STARTED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-STARTED followed by your response, use this bash function: echo "MESSAGE-STARTED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-STARTED"
 
+## Canonical environments
 * **prod** → `154948530138` | profile **bwamazonprod** | 🔴 **READ‑ONLY**
 * **staging** → `574210586915` | profile **bwamazonstaging**
 * **dev** → `824357028182` | profile **bwamazondev**
@@ -38,7 +39,10 @@ infra/
 digger.yml                   # Digger config with multi-env support
 bootstrap/                   # one-off TF for state + OIDC
 MULTI_ACCOUNT_API_GATEWAY_DEPLOYMENT.md  # Complete deployment guide
-plans/                       # Execution plans per CLAUDE.md protocol
+pre-plans/                   # Pre-Execution (plan suggestions) - ensure DATE & TIME
+plans/                       # Execution plans per CLAUDE.md protocol (ensure DATE & TIME is there)
+leftovers/                   # Deprecated/legacy configurations moved during cleanup
+/Users/motty/claude-code/claude-code-docs/                 # claude-code Documentation repo, pull changes to see updated content about claude-code
 ```
 
 ## State & provider (must hold)
@@ -161,5 +165,12 @@ aws sts get-caller-identity --profile bwamazondev
 terragrunt plan
 # (Prod) Only plan/import; do not apply
 ```
+
+IMPORTANT: End each message with MESSAGE-ENDED-[YYYY-MM-DD HH:MM:SS]-MESSAGE-ENDED followed by your response, use this bash function: echo "MESSAGE-ENDED-[$(date '+%Y-%m-%d %H:%M:%S')]-MESSAGE-ENDED"
+
+## State Lock Management (Completed)
+- Cleared stuck RDS terraform state lock in staging environment
+- Cleared stuck API Gateway v2 terraform state lock in staging environment  
+- Implemented Digger configuration optimizations for flexible dev/staging lock policies
 
 **This file is the truth.** If reality drifts (e.g., prod applies creep in), update this doc **and** the CI to enforce the rule.

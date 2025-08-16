@@ -1,0 +1,3 @@
+{
+    "Policy": "{\"Version\":\"2012-10-17\",\"Id\":\"Policy1499063913592\",\"Statement\":[{\"Sid\":\"Stmt1499063908528\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::154948530138:user/stimulator\"},\"Action\":[\"s3:Get*\",\"s3:List*\"],\"Resource\":\"arn:aws:s3:::stsoftwareupdate\"}]}"
+}

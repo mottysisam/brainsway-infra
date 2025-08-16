@@ -1,0 +1,15 @@
+{
+  "id": "5-bafb688-dev",
+  "timestamp": "2025-08-10T18:49:05Z",
+  "environment": "dev",
+  "branch": "HEAD",
+  "commit": "bafb688",
+  "status": "success",
+  "duration": 300,
+  "changes": [],
+  "author": "Motty Sisam",
+  "message": "Merge 7b302ca0fbc6f6f9c3fc45822e2ea0cbd6c77432 into fb47c456bdcb5e541523939423da1c71f9d602bf",
+  "url": "https://github.com/mottysisam/brainsway-infra/actions/runs/16865150685",
+  "terragruntOutput": "\n",
+  "diggerComment": ""
+}

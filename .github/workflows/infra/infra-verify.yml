@@ -1,0 +1,102 @@
+name: Infrastructure Verification
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+        description: 'Whether this is after a plan or deploy'
+
+jobs:
+  # Stage 1: Network verification
+  network_verification:
+    name: " Network"
+    uses: ./.github/workflows/stages/verification/network-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 2: Compute verification
+  compute_verification:
+    name: " Compute"
+    uses: ./.github/workflows/stages/verification/compute-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Stage 3: API verification
+  api_verification:
+    name: " API"
+    uses: ./.github/workflows/stages/verification/api-verification.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+  
+  # Summary job to aggregate results
+  verification_summary:
+    name: " Verification Summary"
+    needs: [network_verification, compute_verification, api_verification]
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      verification_status: ${{ steps.summary.outputs.verification_status }}
+    
+    steps:
+      - name: "generate_verification_summary"
+        id: summary
+        run: |
+          echo "##  Infrastructure Verification Summary - ${{ inputs.environment }}"
+          echo ""
+          echo "**Environment:** ${{ inputs.environment }}"
+          echo "**Verification Type:** ${{ inputs.action == 'deploy' && 'Post-Deployment' || 'Current State' }}"
+          echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          echo "### Verification Results:"
+          echo "- **Network Verification:** ${{ needs.network_verification.result }}"
+          echo "- **Compute Verification:** ${{ needs.compute_verification.result }}"
+          echo "- **API Verification:** ${{ needs.api_verification.result }}"
+          echo ""
+          
+          # Determine overall status
+          SUCCESS_COUNT=0
+          TOTAL_COUNT=3
+          
+          [ "${{ needs.network_verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          [ "${{ needs.compute_verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          [ "${{ needs.api_verification.result }}" = "success" ] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          
+          SUCCESS_PERCENTAGE=$((SUCCESS_COUNT * 100 / TOTAL_COUNT))
+          
+          if [ $SUCCESS_COUNT -eq $TOTAL_COUNT ]; then
+            echo "###  Overall Status: EXCELLENT"
+            echo "All verification checks passed successfully."
+            echo "verification_status=excellent" >> $GITHUB_OUTPUT
+          elif [ $SUCCESS_PERCENTAGE -ge 67 ]; then
+            echo "###  Overall Status: GOOD"
+            echo "Most verification checks passed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=good" >> $GITHUB_OUTPUT
+          elif [ $SUCCESS_PERCENTAGE -ge 33 ]; then
+            echo "###  Overall Status: FAIR"
+            echo "Some verification checks passed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=fair" >> $GITHUB_OUTPUT
+          else
+            echo "###  Overall Status: POOR"
+            echo "Most verification checks failed ($SUCCESS_COUNT/$TOTAL_COUNT)."
+            echo "verification_status=poor" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "${{ inputs.action }}" = "deploy" ]; then
+            echo ""
+            echo "### Post-Deployment Notes:"
+            echo "Resources have been deployed. Allow 30-60 seconds for AWS to fully provision all resources."
+            echo "Monitor CloudWatch logs and metrics for operational status."
+          else
+            echo ""
+            echo "### Current Infrastructure Assessment:"
+            echo "This represents the current health state of infrastructure in ${{ inputs.environment }}."
+            echo "Use this information to identify potential issues or improvements."
+          fi

@@ -1,0 +1,235 @@
+name: Terragrunt Apply
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  terragrunt-apply:
+    name: "Terragrunt Apply - ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "checkout_code"
+        uses: actions/checkout@v4
+      
+      - name: "configure_aws_credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
+          aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
+          aws-region: us-east-2
+      
+      - name: "setup_terraform"
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      
+      - name: "install_terragrunt"
+        run: |
+          TG_VERSION=v0.58.14
+          curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
+            -o /usr/local/bin/terragrunt
+          chmod +x /usr/local/bin/terragrunt
+      
+      - name: "environment_safety_check"
+        run: |
+          echo "Performing safety checks for ${{ inputs.environment }}..."
+          
+          # Production environment protection
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            echo " PRODUCTION DEPLOYMENT BLOCKED"
+            echo "Production environment is READ-ONLY per CLAUDE.md requirements"
+            echo "Use plan-only operations for production"
+            echo " For production changes:"
+            echo "  1. Review plan carefully"
+            echo "  2. Use manual deployment process"
+            echo "  3. Follow change management procedures"
+            exit 1
+          fi
+          
+          # Account verification
+          ENV_DIR="infra/live/${{ inputs.environment }}"
+          EXPECTED_ACCOUNT=$(grep 'aws_account' "$ENV_DIR/env.hcl" | cut -d'"' -f2)
+          CURRENT_ACCOUNT=$(aws sts get-caller-identity --query 'Account' --output text)
+          
+          if [ "$CURRENT_ACCOUNT" != "$EXPECTED_ACCOUNT" ]; then
+            echo "AWS Account mismatch!"
+            echo "  Expected: $EXPECTED_ACCOUNT"
+            echo "  Current:  $CURRENT_ACCOUNT"
+            exit 1
+          fi
+          
+          echo "Environment safety checks passed"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  AWS Account: $CURRENT_ACCOUNT"
+      
+      - name: "clear_terragrunt_cache"
+        working-directory: infra/live/${{ inputs.environment }}
+        run: |
+          echo " Clearing Terragrunt cache for fresh apply..."
+          find . -name ".terragrunt-cache" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "Cache cleared"
+      
+      - name: "execute_terragrunt_apply"
+        id: apply
+        working-directory: infra/live/${{ inputs.environment }}
+        env:
+          TF_IN_AUTOMATION: 1
+          TF_INPUT: 0
+        run: |
+          echo "Running Terragrunt apply for ${{ inputs.environment }}..."
+          echo " Started at: $(date)"
+          echo ""
+          
+          # Create apply output file
+          APPLY_OUTPUT_FILE="terragrunt-apply-${{ inputs.environment }}-$(date +%s).txt"
+          echo " Apply output file: $APPLY_OUTPUT_FILE"
+          
+          # Set parallelism based on environment (conservative for applies)
+          case "${{ inputs.environment }}" in
+            dev)
+              PARALLELISM=2
+              echo "Using parallelism: $PARALLELISM (dev environment)"
+              ;;
+            staging)
+              PARALLELISM=1
+              echo "Using parallelism: $PARALLELISM (staging environment)"
+              ;;
+            *)
+              PARALLELISM=1
+              echo "Using parallelism: $PARALLELISM (default - conservative)"
+              ;;
+          esac
+          
+          # Execute apply with detailed logging
+          echo " Executing: terragrunt run-all apply -auto-approve -no-color -parallelism $PARALLELISM"
+          echo ""
+          
+          # Run the apply and capture both stdout and stderr
+          if terragrunt run-all apply -auto-approve -no-color -parallelism $PARALLELISM 2>&1 | tee "$APPLY_OUTPUT_FILE"; then
+            APPLY_EXIT_CODE=0
+            echo ""
+            echo "Terragrunt apply completed successfully"
+          else
+            APPLY_EXIT_CODE=$?
+            echo ""
+            echo "Terragrunt apply failed with exit code: $APPLY_EXIT_CODE"
+          fi
+          
+          echo " Completed at: $(date)"
+          
+          # Store outputs for other steps
+          echo "apply_file=$APPLY_OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "exit_code=$APPLY_EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # Don't exit here - let analysis step handle the exit code
+      
+      - name: "analyze_apply_output"
+        if: always()
+        run: |
+          APPLY_FILE="${{ steps.apply.outputs.apply_file }}"
+          EXIT_CODE="${{ steps.apply.outputs.exit_code }}"
+          
+          echo "Analyzing apply output..."
+          echo " Apply file: $APPLY_FILE"
+          echo " Exit code: $EXIT_CODE"
+          echo ""
+          
+          if [ ! -f "$APPLY_FILE" ]; then
+            echo "Apply file not found"
+            exit 1
+          fi
+          
+          # Check for successful completion
+          if grep -q "Apply complete\|Resources:.*added.*changed.*destroyed" "$APPLY_FILE"; then
+            echo "Infrastructure changes applied successfully"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "No infrastructure changes applied"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract apply summary
+          echo "Apply Summary:"
+          grep -E "Apply complete|Resources:.*added.*changed.*destroyed|Error:" "$APPLY_FILE" | tail -5 | sed 's/^/  /'
+          
+          # Check for specific error patterns
+          echo ""
+          echo "Checking for common issues..."
+          
+          # Resource creation errors
+          if grep -q "Error.*creating\|Error.*updating\|Error.*deleting" "$APPLY_FILE"; then
+            echo "  Resource operation errors detected"
+            grep -A3 -B1 "Error.*creating\|Error.*updating\|Error.*deleting" "$APPLY_FILE" | sed 's/^/    /'
+          fi
+          
+          # State lock errors
+          if grep -q "Error acquiring the state lock\|LockException" "$APPLY_FILE"; then
+            echo "  State lock issues detected"
+            grep -A3 -B1 "state lock\|LockException" "$APPLY_FILE" | sed 's/^/    /'
+          fi
+          
+          # Permission errors
+          if grep -q "UnauthorizedOperation\|AccessDenied\|Forbidden" "$APPLY_FILE"; then
+            echo "  Permission issues detected"
+            grep -A3 -B1 "UnauthorizedOperation\|AccessDenied\|Forbidden" "$APPLY_FILE" | sed 's/^/    /'
+          fi
+          
+          # Resource limit errors
+          if grep -q "LimitExceeded\|QuotaExceeded\|InsufficientCapacity" "$APPLY_FILE"; then
+            echo "  Resource limit issues detected"
+            grep -A3 -B1 "LimitExceeded\|QuotaExceeded\|InsufficientCapacity" "$APPLY_FILE" | sed 's/^/    /'
+          fi
+          
+          echo ""
+          echo "Apply analysis complete"
+          
+          # Exit with the original apply exit code
+          exit $EXIT_CODE
+      
+      - name: "generate_apply_summary"
+        if: always()
+        run: |
+          APPLY_FILE="${{ steps.apply.outputs.apply_file }}"
+          EXIT_CODE="${{ steps.apply.outputs.exit_code }}"
+          
+          echo "## Terragrunt Apply Summary - ${{ inputs.environment }}"
+          echo ""
+          echo "**Environment:** ${{ inputs.environment }}"
+          echo "**Status:** ${{ steps.apply.outcome }}"
+          echo "**Exit Code:** $EXIT_CODE"
+          echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          
+          if [ -f "$APPLY_FILE" ]; then
+            echo "### Apply Results:"
+            echo '```'
+            # Show last 20 lines of significant output
+            grep -E "Apply complete|Resources:|Error:|^\\+|\\-|~" "$APPLY_FILE" | tail -20
+            echo '```'
+            
+            # Count changes
+            ADDITIONS=$(grep -c "created" "$APPLY_FILE" 2>/dev/null || echo "0")
+            CHANGES=$(grep -c "updated" "$APPLY_FILE" 2>/dev/null || echo "0") 
+            DELETIONS=$(grep -c "destroyed" "$APPLY_FILE" 2>/dev/null || echo "0")
+            
+            echo ""
+            echo "### Change Summary:"
+            echo "- **Created:** $ADDITIONS resources"
+            echo "- **Updated:** $CHANGES resources"
+            echo "- **Destroyed:** $DELETIONS resources"
+          else
+            echo "### Apply output not available"
+          fi
+      
+      - name: "upload_apply_output"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terragrunt-apply-${{ inputs.environment }}
+          path: infra/live/${{ inputs.environment }}/terragrunt-apply-*.txt
+          retention-days: 30
