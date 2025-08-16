@@ -13,24 +13,25 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: "Checkout Code"
+      - name: "checkout_code"
         uses: actions/checkout@v4
       
-      - name: "Configure AWS Credentials"
+      - name: "configure_aws_credentials"
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
           aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
           aws-region: us-east-2
       
-      - name: "Download Apply Output"
+      - name: "download_apply_output"
         uses: actions/download-artifact@v4
         with:
           name: terragrunt-apply-${{ inputs.environment }}
           path: apply-output/
         continue-on-error: true
       
-      - name: "Validate Deployment Success"
+      - name: "validate_deployment_success"
+        id: validate_deployment
         run: |
           echo "Validating deployment success for ${{ inputs.environment }}..."
           
@@ -76,22 +77,23 @@ jobs:
             exit 1
           fi
       
-      - name: "Setup Terraform"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "setup_terraform"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
       
-      - name: "Install Terragrunt"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "install_terragrunt"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         run: |
           TG_VERSION=v0.58.14
           curl -L https://github.com/gruntwork-io/terragrunt/releases/download/${TG_VERSION}/terragrunt_linux_amd64 \
             -o /usr/local/bin/terragrunt
           chmod +x /usr/local/bin/terragrunt
       
-      - name: "State Consistency Check"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "state_consistency_check"
+        id: state_consistency
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         working-directory: infra/live/${{ inputs.environment }}
         run: |
           echo "Checking Terraform state consistency..."
@@ -129,8 +131,8 @@ jobs:
             exit 1
           fi
       
-      - name: "Resource Health Check"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "resource_health_check"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         run: |
           echo "Performing resource health checks..."
           
@@ -179,8 +181,8 @@ jobs:
             echo "No Lambda functions found for ${{ inputs.environment }}"
           fi
       
-      - name: " Security Validation"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "security_validation"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         run: |
           echo " Performing security validation..."
           
@@ -211,12 +213,12 @@ jobs:
             echo "No tagged IAM roles found for ${{ inputs.environment }}"
           fi
       
-      - name: " Cost Impact Validation"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "cost_impact_validation"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         run: |
           echo " Validating cost impact..."
           
-          CREATED_COUNT="${{ steps.validate-deployment.outputs.resources_created }}"
+          CREATED_COUNT="${{ steps.validate_deployment.outputs.resources_created }}"
           
           if [ "$CREATED_COUNT" -gt 0 ]; then
             echo " $CREATED_COUNT new resources created"
@@ -239,14 +241,14 @@ jobs:
             done
           fi
       
-      - name: "Generate Validation Report"
+      - name: "generate_validation_report"
         if: always()
         run: |
           echo "Generating post-deployment validation report..."
           
-          DEPLOYMENT_SUCCESS="${{ steps.validate-deployment.outputs.deployment_success || 'false' }}"
-          STATE_CONSISTENT="${{ steps.state-consistency.outputs.state_consistent || 'unknown' }}"
-          VALIDATION_SKIPPED="${{ steps.validate-deployment.outputs.validation_skipped || 'false' }}"
+          DEPLOYMENT_SUCCESS="${{ steps.validate_deployment.outputs.deployment_success || 'false' }}"
+          STATE_CONSISTENT="${{ steps.state_consistency.outputs.state_consistent || 'unknown' }}"
+          VALIDATION_SKIPPED="${{ steps.validate_deployment.outputs.validation_skipped || 'false' }}"
           
           cat > validation-report-${{ inputs.environment }}.json << EOF
           {
@@ -255,9 +257,9 @@ jobs:
             "deployment": {
               "success": $DEPLOYMENT_SUCCESS,
               "skipped": $VALIDATION_SKIPPED,
-              "resources_created": ${{ steps.validate-deployment.outputs.resources_created || 0 }},
-              "resources_updated": ${{ steps.validate-deployment.outputs.resources_updated || 0 }},
-              "resources_destroyed": ${{ steps.validate-deployment.outputs.resources_destroyed || 0 }}
+              "resources_created": ${{ steps.validate_deployment.outputs.resources_created || 0 }},
+              "resources_updated": ${{ steps.validate_deployment.outputs.resources_updated || 0 }},
+              "resources_destroyed": ${{ steps.validate_deployment.outputs.resources_destroyed || 0 }}
             },
             "validation": {
               "state_consistent": "$STATE_CONSISTENT",
@@ -271,7 +273,7 @@ jobs:
           
           echo "Validation report generated: validation-report-${{ inputs.environment }}.json"
       
-      - name: "Upload Validation Report"
+      - name: "upload_validation_report"
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -279,8 +281,8 @@ jobs:
           path: validation-report-${{ inputs.environment }}.json
           retention-days: 30
       
-      - name: "Deployment Summary"
-        if: steps.validate-deployment.outputs.deployment_success == 'true'
+      - name: "deployment_summary"
+        if: steps.validate_deployment.outputs.deployment_success == 'true'
         run: |
           echo "Deployment validation completed successfully!"
           echo ""
@@ -288,11 +290,11 @@ jobs:
           echo ""
           echo "**Status:** Successful"
           echo " **Completed:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          echo "**Resources Created:** ${{ steps.validate-deployment.outputs.resources_created }}"
-          echo "**Resources Updated:** ${{ steps.validate-deployment.outputs.resources_updated }}"
-          echo "**Resources Destroyed:** ${{ steps.validate-deployment.outputs.resources_destroyed }}"
+          echo "**Resources Created:** ${{ steps.validate_deployment.outputs.resources_created }}"
+          echo "**Resources Updated:** ${{ steps.validate_deployment.outputs.resources_updated }}"
+          echo "**Resources Destroyed:** ${{ steps.validate_deployment.outputs.resources_destroyed }}"
           echo ""
-          echo "**State Consistency:** ${{ steps.state-consistency.outputs.state_consistent }}"
+          echo "**State Consistency:** ${{ steps.state_consistency.outputs.state_consistent }}"
           echo "**Security Checks:** Passed"
           echo " **Cost Validation:** Completed"
           echo ""
