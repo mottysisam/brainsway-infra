@@ -68,7 +68,6 @@ jobs:
   
   # Infrastructure Pipeline - Calls modular workflow
   infrastructure:
-    name: "🏗️ Infrastructure"
     needs: route-pipeline
     uses: .github/workflows/infra/infra-simple.yml
     with:
@@ -78,7 +77,6 @@ jobs:
   
   # Application Pipeline (for now, just detect until workflows are established) 
   application:
-    name: "📦 Application"
     needs: route-pipeline
     if: needs.route-pipeline.outputs.run_application == 'true'
     runs-on: ubuntu-latest
@@ -91,7 +89,6 @@ jobs:
   
   # Unified Status Report
   status-report:
-    name: "📊 Status Report"
     needs: [route-pipeline, infrastructure, application]
     if: always()
     runs-on: ubuntu-latest
