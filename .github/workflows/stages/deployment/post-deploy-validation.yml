@@ -9,56 +9,56 @@ on:
 
 jobs:
   post-deploy-validation:
-    name: "✅ Post-Deploy Validation - ${{ inputs.environment }}"
+    name: "Post-Deploy Validation - ${{ inputs.environment }}"
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
       
-      - name: "🔑 Configure AWS Credentials"
+      - name: "Configure AWS Credentials"
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets[format('AWS_ACCESS_KEY_ID_{0}', upper(inputs.environment))] }}
           aws-secret-access-key: ${{ secrets[format('AWS_SECRET_ACCESS_KEY_{0}', upper(inputs.environment))] }}
           aws-region: us-east-2
       
-      - name: "📥 Download Apply Output"
+      - name: "Download Apply Output"
         uses: actions/download-artifact@v4
         with:
           name: terragrunt-apply-${{ inputs.environment }}
           path: apply-output/
         continue-on-error: true
       
-      - name: "🔍 Validate Deployment Success"
+      - name: "Validate Deployment Success"
         run: |
-          echo "🔍 Validating deployment success for ${{ inputs.environment }}..."
+          echo "Validating deployment success for ${{ inputs.environment }}..."
           
           # Check if apply output exists
           APPLY_FILE=$(find apply-output -name "*.txt" | head -1 2>/dev/null || echo "")
           
           if [ -z "$APPLY_FILE" ] || [ ! -f "$APPLY_FILE" ]; then
-            echo "⚠️ No apply output found"
-            echo "📝 This might indicate deployment was skipped"
+            echo "No apply output found"
+            echo "This might indicate deployment was skipped"
             echo "validation_skipped=true" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          echo "📄 Apply output file: $APPLY_FILE"
+          echo " Apply output file: $APPLY_FILE"
           
           # Check for successful completion
           if grep -q "Apply complete\|Resources:.*added.*changed.*destroyed" "$APPLY_FILE"; then
-            echo "✅ Deployment completed successfully"
+            echo "Deployment completed successfully"
             
             # Extract resource counts
             CREATED=$(grep -c "created" "$APPLY_FILE" 2>/dev/null || echo "0")
             UPDATED=$(grep -c "updated" "$APPLY_FILE" 2>/dev/null || echo "0")
             DESTROYED=$(grep -c "destroyed" "$APPLY_FILE" 2>/dev/null || echo "0")
             
-            echo "📊 Resource Changes Applied:"
-            echo "  ➕ Created: $CREATED"
-            echo "  🔄 Updated: $UPDATED"
-            echo "  ➖ Destroyed: $DESTROYED"
+            echo "Resource Changes Applied:"
+            echo "  Created: $CREATED"
+            echo "  Updated: $UPDATED"
+            echo "  Destroyed: $DESTROYED"
             
             echo "deployment_success=true" >> $GITHUB_OUTPUT
             echo "resources_created=$CREATED" >> $GITHUB_OUTPUT
@@ -66,23 +66,23 @@ jobs:
             echo "resources_destroyed=$DESTROYED" >> $GITHUB_OUTPUT
             
           else
-            echo "❌ Deployment appears to have failed"
+            echo "Deployment appears to have failed"
             echo "deployment_success=false" >> $GITHUB_OUTPUT
             
             # Show error context
             echo ""
-            echo "🔍 Error context:"
+            echo "Error context:"
             grep -A3 -B3 "Error\|Failed" "$APPLY_FILE" | tail -10 | sed 's/^/  /'
             exit 1
           fi
       
-      - name: "🔧 Setup Terraform"
+      - name: "Setup Terraform"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
       
-      - name: "📦 Install Terragrunt"
+      - name: "Install Terragrunt"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         run: |
           TG_VERSION=v0.58.14
@@ -90,140 +90,140 @@ jobs:
             -o /usr/local/bin/terragrunt
           chmod +x /usr/local/bin/terragrunt
       
-      - name: "🔍 State Consistency Check"
+      - name: "State Consistency Check"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         working-directory: infra/live/${{ inputs.environment }}
         run: |
-          echo "🔍 Checking Terraform state consistency..."
+          echo "Checking Terraform state consistency..."
           
           # Run a plan to verify state matches reality
-          echo "📋 Running verification plan..."
+          echo " Running verification plan..."
           
           if terragrunt run-all plan -detailed-exitcode -no-color > verification-plan.txt 2>&1; then
             PLAN_EXIT_CODE=$?
             case $PLAN_EXIT_CODE in
               0)
-                echo "✅ Infrastructure matches configuration perfectly"
+                echo "Infrastructure matches configuration perfectly"
                 echo "state_consistent=true" >> $GITHUB_OUTPUT
                 ;;
               2)
-                echo "⚠️ Infrastructure drift detected"
-                echo "🔍 Some resources differ from configuration"
+                echo "Infrastructure drift detected"
+                echo "Some resources differ from configuration"
                 echo "state_consistent=false" >> $GITHUB_OUTPUT
                 
                 # Show drift summary
                 echo ""
-                echo "📊 Drift Summary:"
+                echo "Drift Summary:"
                 grep -E "Plan:|will be|Error:" verification-plan.txt | head -10 | sed 's/^/  /'
                 ;;
               *)
-                echo "❌ Plan verification failed"
+                echo "Plan verification failed"
                 echo "state_consistent=error" >> $GITHUB_OUTPUT
                 exit 1
                 ;;
             esac
           else
-            echo "❌ Verification plan failed"
+            echo "Verification plan failed"
             echo "state_consistent=error" >> $GITHUB_OUTPUT
             cat verification-plan.txt
             exit 1
           fi
       
-      - name: "🔍 Resource Health Check"
+      - name: "Resource Health Check"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         run: |
-          echo "🔍 Performing resource health checks..."
+          echo "Performing resource health checks..."
           
           # Check API Gateway endpoints if they exist
-          echo "🌐 Checking API Gateway endpoints..."
+          echo " Checking API Gateway endpoints..."
           API_GATEWAYS=$(aws apigatewayv2 get-apis --query 'Items[?Tags.Environment==`${{ inputs.environment }}`].{Id:ApiId,Name:Name}' --output text 2>/dev/null || echo "")
           
           if [ -n "$API_GATEWAYS" ]; then
-            echo "📋 Found API Gateways:"
+            echo " Found API Gateways:"
             echo "$API_GATEWAYS" | sed 's/^/  /'
             
             # Basic connectivity check for each API
             echo "$API_GATEWAYS" | while read -r API_ID API_NAME; do
               if [ -n "$API_ID" ]; then
                 API_ENDPOINT="https://$API_ID.execute-api.us-east-2.amazonaws.com"
-                echo "🔍 Testing endpoint: $API_ENDPOINT"
+                echo "Testing endpoint: $API_ENDPOINT"
                 
                 if curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$API_ENDPOINT" | grep -E "^(200|404|403)$" > /dev/null; then
-                  echo "  ✅ Endpoint responding"
+                  echo "  Endpoint responding"
                 else
-                  echo "  ⚠️ Endpoint not responding (may be expected)"
+                  echo "  Endpoint not responding (may be expected)"
                 fi
               fi
             done
           else
-            echo "📝 No API Gateways found for ${{ inputs.environment }}"
+            echo "No API Gateways found for ${{ inputs.environment }}"
           fi
           
           # Check Lambda functions
           echo ""
-          echo "🔍 Checking Lambda functions..."
+          echo "Checking Lambda functions..."
           LAMBDA_FUNCTIONS=$(aws lambda list-functions --query 'Functions[?Tags.Environment==`${{ inputs.environment }}`].FunctionName' --output text 2>/dev/null || echo "")
           
           if [ -n "$LAMBDA_FUNCTIONS" ]; then
-            echo "📋 Found Lambda functions:"
+            echo " Found Lambda functions:"
             echo "$LAMBDA_FUNCTIONS" | tr '\t' '\n' | sed 's/^/  /'
             
             # Check function status
             echo "$LAMBDA_FUNCTIONS" | tr '\t' '\n' | while read -r FUNCTION_NAME; do
               if [ -n "$FUNCTION_NAME" ]; then
                 STATE=$(aws lambda get-function --function-name "$FUNCTION_NAME" --query 'Configuration.State' --output text 2>/dev/null || echo "Unknown")
-                echo "  📋 $FUNCTION_NAME: $STATE"
+                echo "   $FUNCTION_NAME: $STATE"
               fi
             done
           else
-            echo "📝 No Lambda functions found for ${{ inputs.environment }}"
+            echo "No Lambda functions found for ${{ inputs.environment }}"
           fi
       
-      - name: "🔐 Security Validation"
+      - name: " Security Validation"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         run: |
-          echo "🔐 Performing security validation..."
+          echo " Performing security validation..."
           
           # Check for security groups with wide-open access
-          echo "🛡️ Checking security groups..."
+          echo "Checking security groups..."
           OPEN_SGS=$(aws ec2 describe-security-groups \
             --filters "Name=tag:Environment,Values=${{ inputs.environment }}" \
             --query 'SecurityGroups[?IpPermissions[?IpRanges[?CidrIp==`0.0.0.0/0`]]].GroupId' \
             --output text 2>/dev/null || echo "")
           
           if [ -n "$OPEN_SGS" ]; then
-            echo "⚠️ Security groups with 0.0.0.0/0 access:"
+            echo "Security groups with 0.0.0.0/0 access:"
             echo "$OPEN_SGS" | tr '\t' '\n' | sed 's/^/  /'
-            echo "💡 Review these for compliance with security policies"
+            echo "Review these for compliance with security policies"
           else
-            echo "✅ No overly permissive security groups detected"
+            echo "No overly permissive security groups detected"
           fi
           
           # Check IAM roles created
           echo ""
-          echo "👤 Checking IAM roles..."
+          echo " Checking IAM roles..."
           IAM_ROLES=$(aws iam list-roles --query 'Roles[?Tags[?Key==`Environment`&&Value==`${{ inputs.environment }}`]].RoleName' --output text 2>/dev/null || echo "")
           
           if [ -n "$IAM_ROLES" ]; then
-            echo "📋 IAM roles for ${{ inputs.environment }}:"
+            echo " IAM roles for ${{ inputs.environment }}:"
             echo "$IAM_ROLES" | tr '\t' '\n' | sed 's/^/  /'
           else
-            echo "📝 No tagged IAM roles found for ${{ inputs.environment }}"
+            echo "No tagged IAM roles found for ${{ inputs.environment }}"
           fi
       
-      - name: "💰 Cost Impact Validation"
+      - name: " Cost Impact Validation"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         run: |
-          echo "💰 Validating cost impact..."
+          echo " Validating cost impact..."
           
           CREATED_COUNT="${{ steps.validate-deployment.outputs.resources_created }}"
           
           if [ "$CREATED_COUNT" -gt 0 ]; then
-            echo "💰 $CREATED_COUNT new resources created"
-            echo "📊 Estimated cost impact: TBD (implement cost estimation)"
-            echo "💡 Monitor AWS Cost Explorer for actual impact"
+            echo " $CREATED_COUNT new resources created"
+            echo "Estimated cost impact: TBD (implement cost estimation)"
+            echo "Monitor AWS Cost Explorer for actual impact"
           else
-            echo "💰 No new resources created - minimal cost impact"
+            echo " No new resources created - minimal cost impact"
           fi
           
           # Check for high-cost resource types that were created
@@ -233,16 +233,16 @@ jobs:
             
             for resource in $HIGH_COST_RESOURCES; do
               if grep -q "$resource.*created" "$APPLY_FILE"; then
-                echo "⚠️ High-cost resource created: $resource"
-                echo "💡 Monitor costs closely"
+                echo "High-cost resource created: $resource"
+                echo "Monitor costs closely"
               fi
             done
           fi
       
-      - name: "📊 Generate Validation Report"
+      - name: "Generate Validation Report"
         if: always()
         run: |
-          echo "📊 Generating post-deployment validation report..."
+          echo "Generating post-deployment validation report..."
           
           DEPLOYMENT_SUCCESS="${{ steps.validate-deployment.outputs.deployment_success || 'false' }}"
           STATE_CONSISTENT="${{ steps.state-consistency.outputs.state_consistent || 'unknown' }}"
@@ -269,9 +269,9 @@ jobs:
           }
           EOF
           
-          echo "✅ Validation report generated: validation-report-${{ inputs.environment }}.json"
+          echo "Validation report generated: validation-report-${{ inputs.environment }}.json"
       
-      - name: "💾 Upload Validation Report"
+      - name: "Upload Validation Report"
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -279,21 +279,21 @@ jobs:
           path: validation-report-${{ inputs.environment }}.json
           retention-days: 30
       
-      - name: "🎉 Deployment Summary"
+      - name: "Deployment Summary"
         if: steps.validate-deployment.outputs.deployment_success == 'true'
         run: |
-          echo "🎉 Deployment validation completed successfully!"
+          echo "Deployment validation completed successfully!"
           echo ""
-          echo "## 🚀 Deployment Summary - ${{ inputs.environment }}"
+          echo "## Deployment Summary - ${{ inputs.environment }}"
           echo ""
-          echo "✅ **Status:** Successful"
-          echo "📅 **Completed:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          echo "🏗️ **Resources Created:** ${{ steps.validate-deployment.outputs.resources_created }}"
-          echo "🔄 **Resources Updated:** ${{ steps.validate-deployment.outputs.resources_updated }}"
-          echo "➖ **Resources Destroyed:** ${{ steps.validate-deployment.outputs.resources_destroyed }}"
+          echo "**Status:** Successful"
+          echo " **Completed:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "**Resources Created:** ${{ steps.validate-deployment.outputs.resources_created }}"
+          echo "**Resources Updated:** ${{ steps.validate-deployment.outputs.resources_updated }}"
+          echo "**Resources Destroyed:** ${{ steps.validate-deployment.outputs.resources_destroyed }}"
           echo ""
-          echo "🔍 **State Consistency:** ${{ steps.state-consistency.outputs.state_consistent }}"
-          echo "🛡️ **Security Checks:** Passed"
-          echo "💰 **Cost Validation:** Completed"
+          echo "**State Consistency:** ${{ steps.state-consistency.outputs.state_consistent }}"
+          echo "**Security Checks:** Passed"
+          echo " **Cost Validation:** Completed"
           echo ""
-          echo "✨ Infrastructure deployment successful!"
+          echo "Infrastructure deployment successful!"
