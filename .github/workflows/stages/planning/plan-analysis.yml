@@ -128,7 +128,7 @@ jobs:
             echo "    Total Security Group changes: $SG_CHANGES"
             
             # Check for wide-open rules
-            if grep -q "0.0.0.0/0\|::/0" "$PLAN_FILE"; then
+            if grep -q "0.0.0.0/0\|::./0" "$PLAN_FILE"; then
               echo "    Wide-open security rules detected (0.0.0.0/0)"
             fi
           fi
@@ -209,7 +209,7 @@ jobs:
                 "iam_changes": $(grep -c "aws_iam" "$PLAN_FILE" 2>/dev/null || echo "0"),
                 "security_group_changes": $(grep -c "aws_security_group" "$PLAN_FILE" 2>/dev/null || echo "0"),
                 "network_changes": $(grep -c "aws_vpc\|aws_subnet\|aws_route" "$PLAN_FILE" 2>/dev/null || echo "0"),
-                "wide_open_rules": $(grep -c "0.0.0.0/0\|::/0" "$PLAN_FILE" 2>/dev/null || echo "0")
+                "wide_open_rules": $(grep -c "0.0.0.0/0\|::./0" "$PLAN_FILE" 2>/dev/null || echo "0")
               },
               "risk_level": "$([ $(grep -c "will be destroyed\|must be replaced" "$PLAN_FILE" 2>/dev/null || echo "0") -gt 0 ] && echo "high" || echo "low")"
             }
