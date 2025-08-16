@@ -13,26 +13,26 @@ on:
 
 jobs:
   # Stage 1: Execute Terragrunt plan
-  terragrunt-plan:
-    name: "📋 Terragrunt Plan"
+  terragrunt_plan:
+    name: " Terragrunt Plan"
     uses: ./.github/workflows/stages/planning/terragrunt-plan.yml
     with:
       environment: ${{ inputs.environment }}
     secrets: inherit
   
   # Stage 2: Analyze plan output in detail
-  plan-analysis:
-    name: "🔍 Plan Analysis"
-    needs: terragrunt-plan
+  plan_analysis:
+    name: " Plan Analysis"
+    needs: terragrunt_plan
     uses: ./.github/workflows/stages/planning/plan-analysis.yml
     with:
       environment: ${{ inputs.environment }}
       plan_artifact_name: terragrunt-plan-${{ inputs.environment }}
   
   # Summary job to aggregate results
-  planning-summary:
-    name: "📊 Planning Summary"
-    needs: [terragrunt-plan, plan-analysis]
+  planning_summary:
+    name: " Planning Summary"
+    needs: [terragrunt_plan, plan_analysis]
     if: always()
     runs-on: ubuntu-latest
     outputs:
@@ -40,26 +40,26 @@ jobs:
       plan_status: ${{ steps.summary.outputs.plan_status }}
     
     steps:
-      - name: "📊 Generate Planning Summary"
+      - name: "generate_planning_summary"
         id: summary
         run: |
-          echo "## 📊 Infrastructure Planning Summary - ${{ inputs.environment }}"
+          echo "##  Infrastructure Planning Summary - ${{ inputs.environment }}"
           echo ""
           echo "**Environment:** ${{ inputs.environment }}"
           echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo ""
           echo "### Planning Results:"
-          echo "- **Terragrunt Plan:** ${{ needs.terragrunt-plan.result }}"
-          echo "- **Plan Analysis:** ${{ needs.plan-analysis.result }}"
+          echo "- **Terragrunt Plan:** ${{ needs.terragrunt_plan.result }}"
+          echo "- **Plan Analysis:** ${{ needs.plan_analysis.result }}"
           echo ""
           
           # Determine overall status and extract key information
-          if [ "${{ needs.terragrunt-plan.result }}" = "success" ]; then
-            echo "### ✅ Overall Status: PASSED"
+          if [ "${{ needs.terragrunt_plan.result }}" = "success" ]; then
+            echo "###  Overall Status: PASSED"
             echo "Planning completed successfully."
             echo "plan_status=success" >> $GITHUB_OUTPUT
           else
-            echo "### ❌ Overall Status: FAILED"
+            echo "###  Overall Status: FAILED"
             echo "Planning failed. Review the details above."
             echo "plan_status=failed" >> $GITHUB_OUTPUT
             exit 1

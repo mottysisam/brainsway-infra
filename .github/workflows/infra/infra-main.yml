@@ -44,8 +44,8 @@ concurrency:
 
 jobs:
   # Stage 1: Detect what changed (only when not called with specific environment)
-  detect-changes:
-    name: "🔍 Detect Changes"
+  detect_changes:
+    name: "Detect Changes"
     if: ${{ inputs.environment == '' || inputs.environment == null }}
     uses: ./.github/workflows/infra/infra-detect-changes.yml
     with:
@@ -53,12 +53,12 @@ jobs:
     
   # Stage 2: Validate Terraform syntax and configuration
   validate:
-    name: "✅ Validate"
-    needs: detect-changes
-    if: always() && (needs.detect-changes.outputs.has_changes == 'true' || inputs.environment != '')
+    name: "Validate"
+    needs: detect_changes
+    if: always() && (needs.detect_changes.outputs.has_changes == 'true' || inputs.environment != '')
     strategy:
       matrix:
-        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect-changes.outputs.environments) }}
+        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect_changes.outputs.environments) }}
     uses: ./.github/workflows/infra/infra-validate.yml
     with:
       environment: ${{ matrix.environment }}
@@ -66,43 +66,43 @@ jobs:
     
   # Stage 3: Plan infrastructure changes
   plan:
-    name: "📋 Plan"
-    needs: [detect-changes, validate]
-    if: always() && (needs.detect-changes.outputs.has_changes == 'true' || inputs.environment != '')
+    name: "Plan"
+    needs: [detect_changes, validate]
+    if: always() && (needs.detect_changes.outputs.has_changes == 'true' || inputs.environment != '')
     strategy:
       matrix:
-        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect-changes.outputs.environments) }}
+        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect_changes.outputs.environments) }}
     uses: ./.github/workflows/infra/infra-plan.yml
     with:
       environment: ${{ matrix.environment }}
-      changed_modules: ${{ needs.detect-changes.outputs.changed_modules || '{}' }}
+      changed_modules: ${{ needs.detect_changes.outputs.changed_modules || '{}' }}
     secrets: inherit
     
   # Stage 4: Deploy infrastructure (only when action is 'deploy' or on main branch)
   deploy:
-    name: "🚀 Deploy"
-    needs: [detect-changes, plan]
+    name: "Deploy"
+    needs: [detect_changes, plan]
     if: |
       always() && 
-      (needs.detect-changes.outputs.has_changes == 'true' || inputs.environment != '') &&
+      (needs.detect_changes.outputs.has_changes == 'true' || inputs.environment != '') &&
       (inputs.action == 'deploy' || github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     strategy:
       matrix:
-        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect-changes.outputs.environments) }}
+        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect_changes.outputs.environments) }}
     uses: ./.github/workflows/infra/infra-deploy.yml
     with:
       environment: ${{ matrix.environment }}
-      changed_modules: ${{ needs.detect-changes.outputs.changed_modules || '{}' }}
+      changed_modules: ${{ needs.detect_changes.outputs.changed_modules || '{}' }}
     secrets: inherit
     
   # Stage 5: Verify infrastructure resources exist
   verify:
-    name: "🔍 Verify Resources"
-    needs: [detect-changes, plan, deploy]
-    if: always() && (needs.detect-changes.outputs.has_changes == 'true' || inputs.environment != '')
+    name: "Verify Resources"
+    needs: [detect_changes, plan, deploy]
+    if: always() && (needs.detect_changes.outputs.has_changes == 'true' || inputs.environment != '')
     strategy:
       matrix:
-        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect-changes.outputs.environments) }}
+        environment: ${{ inputs.environment != '' && fromJSON(format('["{0}"]', inputs.environment)) || fromJSON(needs.detect_changes.outputs.environments) }}
     uses: ./.github/workflows/infra/infra-verify.yml
     with:
       environment: ${{ matrix.environment }}
@@ -111,11 +111,11 @@ jobs:
     
   # Stage 6: Generate summary report
   report:
-    name: "📊 Report"
-    needs: [detect-changes, plan, deploy, verify]
+    name: "Report"
+    needs: [detect_changes, plan, deploy, verify]
     if: always()
     uses: ./.github/workflows/reports/report-infra.yml
     with:
-      environments: ${{ needs.detect-changes.outputs.environments }}
+      environments: ${{ needs.detect_changes.outputs.environments }}
       status: ${{ needs.verify.result }}
     secrets: inherit

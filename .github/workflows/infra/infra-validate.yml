@@ -9,56 +9,56 @@ on:
 
 jobs:
   # Stage 1: Terraform syntax validation
-  terraform-syntax:
-    name: "🔍 Terraform Syntax"
+  terraform_syntax:
+    name: " Terraform Syntax"
     uses: ./.github/workflows/stages/validation/terraform-syntax-check.yml
     with:
       environment: ${{ inputs.environment }}
   
   # Stage 2: State backend verification
-  state-backend:
-    name: "🗄️ State Backend"
+  state_backend:
+    name: " State Backend"
     uses: ./.github/workflows/stages/validation/state-backend-check.yml
     with:
       environment: ${{ inputs.environment }}
     secrets: inherit
   
   # Stage 3: Module dependency check
-  module-dependencies:
-    name: "📦 Module Dependencies"
+  module_dependencies:
+    name: " Module Dependencies"
     uses: ./.github/workflows/stages/validation/module-dependency-check.yml
     with:
       environment: ${{ inputs.environment }}
   
   # Summary job to aggregate results
-  validation-summary:
-    name: "📊 Validation Summary"
-    needs: [terraform-syntax, state-backend, module-dependencies]
+  validation_summary:
+    name: " Validation Summary"
+    needs: [terraform_syntax, state_backend, module_dependencies]
     if: always()
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📊 Generate Validation Summary"
+      - name: "generate_validation_summary"
         run: |
-          echo "## 📊 Infrastructure Validation Summary - ${{ inputs.environment }}"
+          echo "##  Infrastructure Validation Summary - ${{ inputs.environment }}"
           echo ""
           echo "**Environment:** ${{ inputs.environment }}"
           echo "**Timestamp:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo ""
           echo "### Validation Results:"
-          echo "- **Terraform Syntax:** ${{ needs.terraform-syntax.result }}"
-          echo "- **State Backend:** ${{ needs.state-backend.result }}"
-          echo "- **Module Dependencies:** ${{ needs.module-dependencies.result }}"
+          echo "- **Terraform Syntax:** ${{ needs.terraform_syntax.result }}"
+          echo "- **State Backend:** ${{ needs.state_backend.result }}"
+          echo "- **Module Dependencies:** ${{ needs.module_dependencies.result }}"
           echo ""
           
           # Determine overall status
-          if [ "${{ needs.terraform-syntax.result }}" = "success" ] && \
-             [ "${{ needs.state-backend.result }}" = "success" ] && \
-             [ "${{ needs.module-dependencies.result }}" = "success" ]; then
-            echo "### ✅ Overall Status: PASSED"
+          if [ "${{ needs.terraform_syntax.result }}" = "success" ] && \
+             [ "${{ needs.state_backend.result }}" = "success" ] && \
+             [ "${{ needs.module_dependencies.result }}" = "success" ]; then
+            echo "###  Overall Status: PASSED"
             echo "All validation checks completed successfully."
           else
-            echo "### ❌ Overall Status: FAILED"
+            echo "###  Overall Status: FAILED"
             echo "One or more validation checks failed. Review the details above."
             exit 1
           fi

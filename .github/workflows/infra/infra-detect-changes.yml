@@ -27,13 +27,13 @@ jobs:
       changed_modules: ${{ steps.analyze.outputs.changed_modules }}
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: "checkout_code"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - name: "🔍 Detect Changed Files"
-        id: changed-files
+      - name: "detect_changed_files"
+        id: changed_files
         run: |
           if [ "${{ inputs.trigger_event }}" = "pull_request" ]; then
             # For PRs, get files changed against base branch
@@ -50,13 +50,13 @@ jobs:
           echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
-          echo "📝 Changed files:"
+          echo " Changed files:"
           echo "$CHANGED_FILES"
       
-      - name: "🎯 Analyze Infrastructure Changes"
+      - name: "analyze_infrastructure_changes"
         id: analyze
         run: |
-          CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+          CHANGED_FILES="${{ steps.changed_files.outputs.changed_files }}"
           
           # Detect environments
           ENVIRONMENTS="[]"
@@ -98,14 +98,14 @@ jobs:
           
           echo "changed_modules=$MODULES" >> $GITHUB_OUTPUT
           
-          echo "📊 Summary:"
+          echo " Summary:"
           echo "  Has Changes: $HAS_CHANGES"
           echo "  Environments: $ENVIRONMENTS"
           echo "  Modules: $MODULES"
       
-      - name: "📢 Report Detection Results"
+      - name: "report_detection_results"
         run: |
-          echo "## 🔍 Infrastructure Change Detection Results"
+          echo "##  Infrastructure Change Detection Results"
           echo ""
           echo "**Has Changes:** ${{ steps.analyze.outputs.has_changes }}"
           echo "**Affected Environments:** ${{ steps.analyze.outputs.environments }}"
@@ -113,5 +113,5 @@ jobs:
           echo ""
           echo "### Changed Files:"
           echo '```'
-          echo "${{ steps.changed-files.outputs.changed_files }}"
+          echo "${{ steps.changed_files.outputs.changed_files }}"
           echo '```'
