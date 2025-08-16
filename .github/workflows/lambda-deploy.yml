@@ -23,11 +23,11 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  detect-changes:
-    name: Detect Changed Functions
+  detect_changes:
+    name: detect_changed_functions
     runs-on: ubuntu-latest
     outputs:
-      changed-functions: ${{ steps.changes.outputs.changed-functions }}
+      changed_functions: ${{ steps.changes.outputs.changed_functions }}
       has-changes: ${{ steps.changes.outputs.has-changes }}
     steps:
       - name: Checkout code

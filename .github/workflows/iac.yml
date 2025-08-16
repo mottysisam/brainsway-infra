@@ -1,5 +1,5 @@
-name: Infrastructure & Application CI/CD
-run-name: "${{ github.event_name == 'pull_request' && '📋 Plan' || '🚀 Deploy' }} - ${{ github.ref_name }}"
+name: Infrastructure and Application CI/CD
+run-name: "${{ github.event_name == 'pull_request' && 'Plan' || 'Deploy' }} - ${{ github.ref_name }}"
 
 on:
   pull_request:
@@ -22,20 +22,20 @@ concurrency:
 
 jobs:
   # Route to appropriate pipeline based on changes
-  route-pipeline:
-    name: "🔀 Route Pipeline"
+  route_pipeline:
+    name: route_pipeline
     runs-on: ubuntu-latest
     outputs:
       run_infrastructure: ${{ steps.detect.outputs.run_infrastructure }}
       run_application: ${{ steps.detect.outputs.run_application }}
     
     steps:
-      - name: "📥 Checkout Code"
+      - name: checkout_code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - name: "🔍 Detect Changes"
+      - name: detect_changes
         id: detect
         run: |
           # Get changed files
@@ -53,7 +53,7 @@ jobs:
           # Check for infrastructure changes
           if echo "$CHANGED_FILES" | grep -E "^infra/(live|modules)" > /dev/null; then
             echo "run_infrastructure=true" >> $GITHUB_OUTPUT
-            echo "🏗️ Infrastructure changes detected"
+            echo "Infrastructure changes detected"
           else
             echo "run_infrastructure=false" >> $GITHUB_OUTPUT
           fi
@@ -61,14 +61,14 @@ jobs:
           # Check for application changes
           if echo "$CHANGED_FILES" | grep -E "^(infra/lambda-functions|src)" > /dev/null; then
             echo "run_application=true" >> $GITHUB_OUTPUT
-            echo "📦 Application changes detected"
+            echo "Application changes detected"
           else
             echo "run_application=false" >> $GITHUB_OUTPUT
           fi
   
   # Infrastructure Pipeline - Calls modular workflow
   infrastructure:
-    needs: route-pipeline
+    needs: route_pipeline
     uses: .github/workflows/infra/infra-simple.yml
     with:
       environment: "dev"
@@ -77,40 +77,40 @@ jobs:
   
   # Application Pipeline (for now, just detect until workflows are established) 
   application:
-    needs: route-pipeline
-    if: needs.route-pipeline.outputs.run_application == 'true'
+    needs: route_pipeline
+    if: needs.route_pipeline.outputs.run_application == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: "📦 Application Pipeline Status"
+      - name: application_pipeline_status
         run: |
-          echo "📦 Application pipeline would run here"
+          echo "Application pipeline would run here"
           echo "Lambda code deployment will be handled by dedicated workflow"
           echo "Currently detecting changes and preparing for modular execution"
   
   # Unified Status Report
-  status-report:
-    needs: [route-pipeline, infrastructure, application]
+  status_report:
+    needs: [route_pipeline, infrastructure, application]
     if: always()
     runs-on: ubuntu-latest
     
     steps:
-      - name: "📊 Generate Status Summary"
+      - name: generate_status_summary
         run: |
-          echo "## 🔄 CI/CD Pipeline Summary"
+          echo "## CI/CD Pipeline Summary"
           echo "**Trigger:** ${{ github.event_name }}"
           echo "**Branch:** ${{ github.ref_name }}"
-          echo "✅ Pipeline executed successfully"
+          echo "Pipeline executed successfully"
       
-      - name: "💬 Comment on PR"
+      - name: comment_on_pr
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         continue-on-error: true
         with:
           script: |
-            let comment = `## 🔄 CI/CD Pipeline Results\n\n`;
-            comment += `✅ Pipeline executed successfully\n`;
-            comment += `🔗 [View Logs](${context.payload.repository.html_url}/actions/runs/${{ github.run_id }})\n`;
-            comment += `\n---\n*🤖 Automated CI/CD Pipeline*`;
+            let comment = `## CI/CD Pipeline Results\n\n`;
+            comment += `Pipeline executed successfully\n`;
+            comment += `[View Logs](${context.payload.repository.html_url}/actions/runs/${{ github.run_id }})\n`;
+            comment += `\n---\nAutomated CI/CD Pipeline`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
